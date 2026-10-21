@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.egg-info/
+.DS_Store
+# Vendor-controlled SDK binaries (see readme "Licensing"); populate with scripts/install_toupcam.py
+vendor/toupcam/
+fiji_original/
+imagepy_original/
+omax/
