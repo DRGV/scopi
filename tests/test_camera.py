@@ -104,7 +104,7 @@ class FakeHR(Exception):
         self.hr = hr
 
 
-def make_fake_sdk(access_denied=False):
+def make_fake_sdk(access_denied=False, busy_start=False):
     m = types.SimpleNamespace()
     m.TOUPCAM_EVENT_IMAGE, m.TOUPCAM_EVENT_STILLIMAGE, m.TOUPCAM_EVENT_DISCONNECTED = 4, 5, 0x81
     m.TOUPCAM_EVENT_ERROR, m.TOUPCAM_EVENT_NOFRAMETIMEOUT, m.TOUPCAM_EVENT_NOPACKETTIMEOUT = 0x80, 0x82, 0x85
@@ -112,6 +112,7 @@ def make_fake_sdk(access_denied=False):
     m.TOUPCAM_FLAG_RAW10 = m.TOUPCAM_FLAG_RAW12 = m.TOUPCAM_FLAG_RAW14 = 0
     m.TOUPCAM_FLAG_RAW16 = 0x8000
     m.HRESULTException = FakeHR
+    m.TOUPCAM_OPTION_BANDWIDTH = 0x2e
 
     class Info:
         width = height = 0
@@ -158,6 +159,8 @@ def make_fake_sdk(access_denied=False):
         def put_Roi(self, *a): self.roi = a
 
         def StartPullModeWithCallback(self, fun, ctx):
+            if busy_start:
+                raise FakeHR(0x800700aa)
             self.cb, self.ctx, self.running = fun, ctx, True
 
         def Stop(self):
@@ -191,6 +194,9 @@ def make_fake_sdk(access_denied=False):
     cams = []
 
     class Toupcam:
+        @staticmethod
+        def Version(): return "60.0.fake"
+
         @staticmethod
         def EnumV2(): return [Dev()]
 
@@ -234,6 +240,45 @@ def test_touptek_permission_denied(monkeypatch):
     monkeypatch.setattr(touptek, "_toupcam", make_fake_sdk(access_denied=True))
     with pytest.raises(PermissionDenied, match="udev"):
         touptek.TouptekCamera().open("fake-id")
+
+
+def test_touptek_start_busy_names_the_error(monkeypatch):
+    monkeypatch.setattr(touptek, "_toupcam", make_fake_sdk(busy_start=True))
+    cam = touptek.TouptekCamera()
+    cam.open("fake-id")
+    with pytest.raises(CameraError, match=r"E_BUSY \(0x800700aa\).*already in use"):
+        cam.start(lambda: None)
+    assert not cam.running
+
+
+def _load_bringup():
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("pi_bringup", Path(__file__).resolve().parents[1] / "scripts" / "pi_bringup.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_bringup_camdiag_reports_start_failure_per_resolution(monkeypatch, capsys):
+    monkeypatch.setattr(touptek, "_toupcam", make_fake_sdk(busy_start=True))
+    bringup = _load_bringup()
+    a = types.SimpleNamespace(secs=0.05, res=None, bandwidth=50)
+    assert bringup.cmd_camdiag(a) == 1
+    out = capsys.readouterr().out
+    assert "SDK version: 60.0.fake" in out and "Open: ok" in out
+    assert out.count("start FAILED  E_BUSY (0x800700aa)") == 2    # both fake resolutions, none aborts the run
+
+
+def test_bringup_camdiag_pulls_frames(monkeypatch, capsys):
+    sdk = make_fake_sdk()
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    bringup = _load_bringup()
+    assert bringup.cmd_camdiag(types.SimpleNamespace(secs=0.1, res=1, bandwidth=0)) == 0
+    out = capsys.readouterr().out
+    assert "[1] 32x24: start ok" in out and "pull errors none" in out
+    assert sdk.cams[0].closed
 
 
 def test_touptek_pull_and_snap(fake_sdk):

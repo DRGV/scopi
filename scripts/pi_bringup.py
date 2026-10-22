@@ -4,6 +4,8 @@
     python scripts/pi_bringup.py check            # wheels import, glibc, Qt platform plugins
     python scripts/pi_bringup.py render           # time 18 MP pan/zoom through the real canvas (needs a display)
     python scripts/pi_bringup.py camera [--secs 5] # lsusb, enumerate, fps + USB throughput per resolution
+    python scripts/pi_bringup.py camdiag [--res N] [--bandwidth %] [--secs 3]
+                                                   # the vendor SDK only (no ImagePi camera code): USB state, flags, start/pull per resolution
 
 Run `render` under Wayland (QT_QPA_PLATFORM=wayland) on the Pi; use QT_QPA_PLATFORM=offscreen elsewhere.
 """
@@ -99,11 +101,16 @@ def cmd_camera(a) -> int:
     print("found:", info.name, info.resolutions, "pixel size (um):", info.pixel_size_um)
     cam = TouptekCamera()
     cam.open(info.id)
+    failed = 0
     try:
         for idx, (w, h) in enumerate(cam.resolutions):
-            cam.set_resolution(idx)
-            n = [0]
-            cam.start(lambda: None)
+            try:
+                cam.set_resolution(idx)
+                cam.start(lambda: None)
+            except CameraError as e:
+                failed += 1
+                print(f"{w}x{h}: FAILED  {e}")
+                continue
             t0 = time.time()
             frames = 0
             while time.time() - t0 < a.secs:
@@ -118,7 +125,98 @@ def cmd_camera(a) -> int:
             print(f"{w}x{h}: {frames / dt:5.1f} fps, {mb / dt:6.1f} MB/s decoded RGB24")
     finally:
         cam.close()
-    return 0
+    return 1 if failed else 0
+
+
+def cmd_camdiag(a) -> int:
+    """Use the vendor SDK directly, step by step, so a failure can be pinned on the camera/USB/SDK rather than on ImagePi."""
+    import os
+
+    from imagepi.camera.base import CameraError
+    from imagepi.camera.touptek import _hr, _hr_text, load_sdk
+
+    try:
+        print("usbfs_memory_mb:", open("/sys/module/usbcore/parameters/usbfs_memory_mb").read().strip())
+    except OSError:
+        print("usbfs_memory_mb: n/a")
+    for cmd in (["lsusb", "-t"],):
+        if shutil.which(cmd[0]):
+            print("$", " ".join(cmd))
+            print(subprocess.run(cmd, capture_output=True, text=True).stdout.rstrip())
+    if shutil.which("pgrep"):
+        mine = {str(os.getpid()), str(os.getppid())}   # this process and the shell that started it
+        others = [l for l in subprocess.run(["pgrep", "-af", "imagepi|pi_bringup|toupcam"], capture_output=True, text=True).stdout.splitlines()
+                  if l.split()[0] not in mine and "pgrep" not in l]
+        print("other ImagePi/camera processes:", others or "none")
+
+    try:
+        tc = load_sdk()
+    except CameraError as e:
+        print(e)
+        return 1
+    version = tc.Toupcam.Version()
+    print("SDK version:", version.decode() if isinstance(version, bytes) else version)
+    devs = tc.Toupcam.EnumV2()
+    if not devs:
+        print("EnumV2: no camera")
+        return 1
+    d = devs[0]
+    m = d.model
+    flags = [n[len("TOUPCAM_FLAG_"):] for n in dir(tc) if n.startswith("TOUPCAM_FLAG_") and m.flag & getattr(tc, n)]
+    print(f"camera: {d.displayname}  id={d.id}  model={m.name}")
+    print("resolutions:", [(r.width, r.height) for r in m.res])
+    print("flags:", " ".join(flags))
+    events = {getattr(tc, n): n[len("TOUPCAM_EVENT_"):] for n in dir(tc) if n.startswith("TOUPCAM_EVENT_")}
+
+    cam = tc.Toupcam.Open(d.id)
+    if not cam:
+        print("Open: returned None (camera busy or not accessible)")
+        return 1
+    print("Open: ok")
+    failed = 0
+    try:
+        if a.bandwidth:
+            try:
+                cam.put_Option(tc.TOUPCAM_OPTION_BANDWIDTH, a.bandwidth)
+                print("bandwidth set to", a.bandwidth, "%")
+            except (tc.HRESULTException, AttributeError) as ex:
+                print("bandwidth option failed:", _hr_text(ex) if hasattr(ex, "hr") else ex)
+        order = [a.res] if a.res is not None else list(range(len(m.res) - 1, -1, -1))   # smallest first
+        for idx in order:
+            w, h = m.res[idx].width, m.res[idx].height
+            seen: dict[str, int] = {}
+
+            def on_event(ev, _ctx, seen=seen):
+                seen[events.get(ev, hex(ev))] = seen.get(events.get(ev, hex(ev)), 0) + 1
+
+            try:
+                cam.put_eSize(idx)
+                bw, bh = cam.get_Size()
+                buf = bytearray(bw * bh * 3)
+                cam.StartPullModeWithCallback(on_event, None)
+            except tc.HRESULTException as ex:
+                failed += 1
+                print(f"[{idx}] {w}x{h}: start FAILED  {_hr_text(ex)}")
+                continue
+            info = tc.ToupcamFrameInfoV3()
+            frames, pull_err = 0, set()
+            t0 = time.time()
+            while time.time() - t0 < a.secs:
+                try:
+                    cam.PullImageV3(buf, 0, 24, -1, info)
+                    frames += 1
+                except tc.HRESULTException as ex:
+                    if _hr(ex) != 0x8000000A:   # E_PENDING just means "no new frame yet"
+                        pull_err.add(_hr_text(ex))
+                    time.sleep(0.005)
+            cam.Stop()
+            dt = time.time() - t0
+            print(f"[{idx}] {w}x{h}: start ok, {frames} frames pulled ({frames / dt:.1f} fps), events {seen or 'none'}, pull errors {sorted(pull_err) or 'none'}")
+            if not frames:
+                failed += 1
+    finally:
+        cam.Close()
+    return 1 if failed else 0
 
 
 def main() -> int:
@@ -129,6 +227,11 @@ def main() -> int:
     c = sub.add_parser("camera")
     c.add_argument("--secs", type=float, default=5.0)
     c.set_defaults(fn=cmd_camera)
+    d = sub.add_parser("camdiag")
+    d.add_argument("--secs", type=float, default=3.0)
+    d.add_argument("--res", type=int, default=None, help="only this resolution index (default: all, smallest first)")
+    d.add_argument("--bandwidth", type=int, default=0, help="set the camera's USB bandwidth option to this percent (1-100) first")
+    d.set_defaults(fn=cmd_camdiag)
     a = ap.parse_args()
     return a.fn(a)
 

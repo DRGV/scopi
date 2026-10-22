@@ -333,9 +333,15 @@ class LiveView(QWidget):
         self._img: QImage | None = None
         self._arr = None
         self._sel: tuple[QPointF, QPointF] | None = None
+        self._why = ""   # last camera error, shown while there is no image
         self.setMinimumSize(320, 240)
         self.setAutoFillBackground(True)
         controller.frame.connect(self.set_frame)
+        controller.error.connect(self._set_why)
+
+    def _set_why(self, msg: str) -> None:
+        self._why = msg
+        self.update()
 
     def set_frame(self, arr: np.ndarray) -> None:
         arr = np.ascontiguousarray(arr)
@@ -343,6 +349,7 @@ class LiveView(QWidget):
             arr = (arr >> 8).astype(np.uint8)
         h, w = arr.shape[:2]
         self._arr = arr
+        self._why = ""
         fmt = QImage.Format.Format_RGB888 if arr.ndim == 3 else QImage.Format.Format_Grayscale8
         self._img = QImage(arr.data, w, h, arr.strides[0], fmt)
         self.update()
@@ -360,7 +367,8 @@ class LiveView(QWidget):
         p.fillRect(self.rect(), QColor(30, 30, 30))
         if self._img is None:
             p.setPen(QColor(180, 180, 180))
-            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No live image")
+            p.drawText(self.rect().adjusted(16, 0, -16, 0), Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                       "No live image" + (f"\n\n{self._why}" if self._why else ""))
             return
         t = self._target()
         p.drawImage(t, self._img)

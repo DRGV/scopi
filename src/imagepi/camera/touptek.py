@@ -75,6 +75,27 @@ def _hr(ex) -> int:
 
 E_ACCESSDENIED = 0x80070005
 
+# HRESULT -> (name, hint). The SDK's raw numbers are opaque, and these end up in the GUI status line.
+_HR_INFO = {
+    0x80070005: ("E_ACCESSDENIED", "no permission: install the udev rule and replug the camera"),
+    0x800700AA: ("E_BUSY", "camera already in use (another ImagePi window or program?) or the USB link could not be set up"),
+    0x8007001F: ("E_GEN_FAILURE", "device not functioning: check the cable, the USB 3 port and the power supply"),
+    0x8007000E: ("E_OUTOFMEMORY", "out of memory (on Linux also the usbfs buffer limit)"),
+    0x80070057: ("E_INVALIDARG", "invalid argument"),
+    0x80004001: ("E_NOTIMPL", "not supported by this camera"),
+    0x8000FFFF: ("E_UNEXPECTED", "not allowed in the camera's current state"),
+    0x80004005: ("E_FAIL", "generic failure"),
+    0x8001010E: ("E_WRONG_THREAD", "called from the wrong thread"),
+    0x8001011F: ("E_TIMEOUT", "timed out"),
+}
+
+
+def _hr_text(ex) -> str:
+    """'E_BUSY (0x800700aa): camera already in use ...' for an SDK exception."""
+    hr = _hr(ex)
+    name, hint = _HR_INFO.get(hr, ("", ""))
+    return f"{name} (0x{hr:x}): {hint}" if name else f"hr=0x{hr:x}"
+
 
 class TouptekCamera(CameraBackend):
     name = "touptek"
@@ -151,7 +172,7 @@ class TouptekCamera(CameraBackend):
         except self._tc.HRESULTException as ex:
             if _hr(ex) == E_ACCESSDENIED:
                 raise PermissionDenied("permission denied opening the camera: install packaging/99-toupcam.rules (udev) and replug") from ex
-            raise CameraError(f"failed to open camera (hr=0x{_hr(ex):x})") from ex
+            raise CameraError(f"failed to open camera: {_hr_text(ex)}") from ex
         if not self._cam:
             raise CameraError("failed to open camera")
         for d in self._tc.Toupcam.EnumV2():
@@ -276,7 +297,7 @@ class TouptekCamera(CameraBackend):
         try:
             cam.StartPullModeWithCallback(self._callback, self)
         except self._tc.HRESULTException as ex:
-            raise CameraError(f"failed to start camera (hr=0x{_hr(ex):x})") from ex
+            raise CameraError(f"failed to start camera: {_hr_text(ex)}") from ex
         self._running = True
 
     @staticmethod
@@ -332,7 +353,7 @@ class TouptekCamera(CameraBackend):
         try:
             cam.Snap(0)
         except self._tc.HRESULTException as ex:
-            raise CameraError(f"snap failed (hr=0x{_hr(ex):x})") from ex
+            raise CameraError(f"snap failed: {_hr_text(ex)}") from ex
         if not self._still_ready.wait(timeout):
             raise CameraError("timed out waiting for still image")
         info = self._tc.ToupcamFrameInfoV3()
