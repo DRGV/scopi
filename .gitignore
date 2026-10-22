@@ -2,9 +2,10 @@
 __pycache__/
 *.egg-info/
 .DS_Store
-# Vendor-controlled SDK binaries (see readme "Licensing"); populate with scripts/install_toupcam.py
-vendor/toupcam/
+# Vendor-controlled SDK binaries and downloads (see readme "Licensing"); populate vendor/toupcam with scripts/install_toupcam.py
+vendor/
 fiji_original/
 imagepy_original/
 omax/
 pi_tests/
+/references

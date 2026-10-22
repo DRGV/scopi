@@ -10,18 +10,20 @@ The goal of ImagePi is to create a microscope image viewing and processing appli
 - can perform image filtering, morphological operations and other routine operations
 - can do image segmentation, area counting, geometric measurement and density analysis.
 - is able to perform data analysis, filtering, statistical analysis and others related to the parameters extracted from the image.
-- features based on the fiji (Java) application found at /Users/dwight.vieira/Code/Python/imagepy/fiji_original
+- features based on the fiji (Java) application found at `references/fiji`
 
 OMAX 18MP USB 3.0 C-Mount Microscope Camera
 - https://omaxmicroscope.com/products/a35180u3
 - additional software: https://omaxmicroscope.com/pages/software-download
-- Linux Software: imagepy/omax/ToupTekToupLite.x64.sh (x86-64 only, **not usable on the Pi 5**; see "Camera SDK" below)
+- Linux Software: `references/omax/ToupTekToupLite.x64.sh` (x86-64 only, **not usable on the Pi 5**; see "Camera SDK" below)
+
+Reference material (the original Fiji and ImagePy checkouts, the OMAX downloads and an SDK copy) lives in `references/`, which is git-ignored and exists only on the dev Mac. See "What the reference material contains".
 
 ---
 
 # Implementation Plan
 
-Status: **milestones 1-4 implemented and tested on the dev Mac; nothing has been run on a Pi 5 or against a physical camera yet.** Last updated 2026-10-21. See "Implementation status" below for what is and is not verified.
+Status: **milestones 1-4 implemented and tested on the dev Mac. Pi 5 bring-up (milestone 0) started on 2026-10-22 and is not finished: the Python wheels install on the Pi, but ImagePi itself has not been installed or launched there, and nothing has been run against a physical camera.** Last updated 2026-10-22. See "Implementation status" below for what is and is not verified.
 
 ## Implementation status
 
@@ -30,20 +32,57 @@ Status: **milestones 1-4 implemented and tested on the dev Mac; nothing has been
 ```
 python3.13 -m venv .venv && .venv/bin/pip install -e ".[test]"
 .venv/bin/python -m imagepi [image files...]      # or: .venv/bin/imagepi
-.venv/bin/python -m pytest                         # 141 tests; UI tests run offscreen
-python scripts/install_toupcam.py omax/toupcamsdk.20260818            # camera SDK (folder or zip) -> vendor/toupcam (git-ignored)
-python scripts/install_luts.py fiji_original/fiji/luts               # optional: Fiji LUTs -> ~/.imagepi/luts
+.venv/bin/python -m pytest                         # 141 tests (140 pass, 1 skips without the SDK); UI tests run offscreen
+python scripts/install_toupcam.py references/omax/toupcamsdk.20260818   # camera SDK (folder or zip) -> vendor/toupcam (git-ignored)
+python scripts/install_luts.py references/fiji/luts                     # optional: Fiji LUTs -> ~/.imagepi/luts
+python scripts/make_test_images.py                                      # test images -> ~/imagepi-test (18 MP frame, known shapes)
 ```
 
-On the Pi: `packaging/install_pi.sh [toupcamsdk.zip]` (apt libs, venv, udev rule, SDK, desktop launcher), then
-`scripts/pi_bringup.py check | render | camera` to do the milestone 0 measurements. `scripts/benchmark.py` times the
-display pipeline and filters on an 18 MP image.
+### Quick start (Raspberry Pi 5, Raspberry Pi OS Trixie)
+
+```
+git clone https://github.com/DRGV/imagepi && cd imagepi && git switch dev   # dev until it is merged to main
+bash packaging/install_pi.sh /path/to/toupcamsdk.zip                        # as your normal user: not sudo, and bash, not sh
+.venv/bin/python scripts/pi_bringup.py check                               # then: render | camera
+.venv/bin/python scripts/benchmark.py                                      # display pipeline and filters on an 18 MP image
+.venv/bin/imagepi                                                          # or the ImagePi entry in the application menu
+```
+
+`install_pi.sh` installs the Qt runtime libraries with apt, builds `.venv`, installs ImagePi with its dependencies and the
+`test` extra, installs the SDK and udev rule, and writes the desktop launcher. It is safe to re-run. The step-by-step Pi
+test plans (`references/test1.txt`, `test2.txt`, ...) are local files, not part of the repo.
+
+### Raspberry Pi setup notes
+
+Found during the first Pi run (2026-10-22: Pi 5, Python 3.13.5, glibc 2.41, aarch64, kernel 6.18):
+
+- **The `pip` package name is not always the import name.**
+
+  | `import` | `pip install` |
+  |---|---|
+  | `cv2` | `opencv-python-headless` (ImagePi's dependency; not `cv2`, not `sv2`) |
+  | `skimage` | `scikit-image` |
+  | `PIL` | `pillow` |
+
+  `sv2` on PyPI is an unrelated project (a typo for `cv2`) and does not build here; if it is in the venv, `pip uninstall sv2`.
+- **Use `opencv-python-headless`, not `opencv-python`.** The GUI wheel (5.0.0.93, checked) bundles its own Qt 5 in `cv2/qt/`,
+  which has only an xcb plugin, and `cv2/config-3.py` points `QT_QPA_PLATFORM_PLUGIN_PATH` at it on import. ImagePi imports
+  `cv2` before it creates the `QApplication`, so PySide6 then cannot find its own (Wayland or xcb) platform plugin. Both wheels
+  provide `cv2`, so uninstall every OpenCV variant before installing the headless one. `install_pi.sh` now does this.
+- **Run `install_pi.sh` with bash as your own user.** `sh` is dash on the Pi, not bash, and `sudo bash ...` leaves a root-owned
+  venv and writes the launcher to root's home; the script now refuses both. Its glibc check no longer pipes `ldd --version`
+  through `head`: under `set -o pipefail` that can end the script silently, a likely cause of the first run printing nothing.
+  Trace a failing run with `bash -x packaging/install_pi.sh`.
+- **The link can be slow.** PySide6 (about 260 MB of wheels), OpenCV and matplotlib took minutes and one download timed out; pip
+  now runs with `--retries 10 --timeout 60`, and a re-run reuses the pip cache.
+- **Keep the venv to ImagePi's dependencies.** An editor such as ReText in the same venv pulls in PyQt6 beside PySide6.
+- `vendor/` is wholly git-ignored: it holds the SDK zips, a partial download and the extracted `vendor/toupcam/`.
 
 ### What exists
 
 | Milestone | State | Where |
 |---|---|---|
-| 0 Pi bring-up | **Tooling only.** `pi_bringup.py` and `install_pi.sh` are written; none of it has run on a Pi. | `scripts/`, `packaging/` |
+| 0 Pi bring-up | **In progress.** First Pi run 2026-10-22: the dependency wheels install on aarch64 Python 3.13 and the 2026 SDK extracts to `vendor/toupcam/`, but ImagePi was never installed or launched there (the install script exited silently and `opencv-python` was installed instead of the headless build). Both are fixed in the repo and need re-testing on the Pi. | `scripts/`, `packaging/` |
 | 1 MVP | Done. `ImageDoc` (stack, calibration, LUT, ROI, memory-bounded undo), readers/writers (PNG/JPEG/BMP/TIFF/ImageJ-TIFF/OME-TIFF/NPY, 8/16-bit, RGB, stacks, DICOM if `pydicom` is installed), canvas with mip pyramid and vector ROI overlays, 8 ROI tools plus ROI manager, Measure with calibration and scale bar, filters, morphology, thresholds, declarative parameter dialogs with debounced live preview on a crop, macro record/replay/batch, plugin loader. | `src/imagepi/{core,io,ops,ui,plugins}` |
 | 2 Camera | Done against a simulated backend and a fake SDK; the real SDK library loads on macOS. `CameraBackend` ABC, ToupTek backend (pull mode, `PullImageV3`, hotplug, disconnect handling, permission error hint), V4L2/OpenCV fallback, simulated backend (synthetic scene or folder/video replay), live-view panel, snap with metadata, time-lapse, per-objective calibration presets. | `src/imagepi/camera`, `ui/camera_panel.py` |
 | 3 Analysis | Done. Connected components, marker watershed, SLIC, Felzenszwalb, Random Walker; Analyze Particles (size/circularity/edge filters, outlines, summary and density); `regionprops` geometry (area, perimeter, centroid, Feret, ellipse, solidity); area fraction; marker counting; results statistics (summary, filter, group-by); Z-project; extended depth of field; Fiji LUT loader (raw, ICOL, text, float text). | `ops/{analyze,segment,stack}.py`, `core/luts.py` |
@@ -53,27 +92,38 @@ Not done: stitching (stretch goal), pixel classifier (scikit-learn, "later"), a 
 
 ### Verified vs. not verified
 
-Verified (dev Mac, Python 3.13, arm64): the 138 pytest tests, including golden checks against scikit-image/SciPy values,
+Verified (dev Mac, Python 3.13, arm64): the pytest suite (140 pass; the 141st, `test_real_sdk_loads`, skips unless an SDK is in
+`vendor/toupcam/`), including golden checks against scikit-image/SciPy values,
 ROI mask/area/calibration cases, the 0.01 mm calibration-slide arithmetic, file round trips, simulated-camera live view,
 snap, time-lapse and unplug, and the ToupTek backend driven by a fake SDK. `libtoupcam.dylib` loads and reports version
-54.22876.20230702. Offscreen screenshots of the light and dark themes were checked by eye.
+54.22876.20230702 (2023 SDK) and 60.32327.20260818 (2026 SDK); `test_real_sdk_loads` accepts any SDK version. Offscreen
+screenshots of the light and dark themes were checked by eye.
+
+Verified on the Pi 5 (2026-10-22, Python 3.13.5, glibc 2.41): pip installs aarch64 cp313 wheels for numpy 2.5.4, scipy 1.18.1,
+scikit-image 0.26.0, tifffile, imageio, pandas 3.0.6, matplotlib 3.11.2, PySide6 6.12.0 and OpenCV 5.0.0.93, and
+`pi_bringup.py check` imports numpy, scipy, PIL, tifffile, imageio, pandas and matplotlib. The 2026 SDK (`toupcamsdk.20260519`)
+extracts in the `linux/arm64/glibc/` layout. Not yet re-checked after the later installs: scikit-image, PySide6 and the Qt platform.
 
 On the dev Mac an 18 MP 8-bit image repaints in about 20 ms (fit, 100%, 25% and 400% zoom) and a 7x7 median takes
 about 33 ms; peak RSS for a 16-bit RGB 18 MP image was about 0.8 GB. These are Mac numbers, not Pi numbers.
 
 **Not verified, and needing the hardware:**
-- Everything on the Pi 5: wheel availability for PySide6/scikit-image/OpenCV/SciPy on aarch64 Python 3.13, Qt-on-Wayland speed, USB 3 throughput and fps at each camera resolution, the camera's USB product ID.
+- On the Pi 5: `pip install -e .` and the `imagepi` command, the PySide6 platform plugin under Wayland, launching the app, the pytest suite, the udev rule, the desktop launcher, Qt-on-Wayland speed, USB 3 throughput and fps at each camera resolution, the camera's USB product ID.
 - Any real camera: enumeration with a device attached, the RGB byte order and upside-down assumptions (the SDK header says RGB / not flipped on Linux and macOS, and ImagePi sets both options explicitly), 16-bit RGB48 pull, hardware ROI crop, hotplug events.
 - The `V4L2Camera` fallback and DICOM reading (no device / `pydicom` not installed here).
 - The `imagepi.plugins` entry-point route (folder discovery is tested).
 
 ### Camera SDK versions
 
-`omax/toupcamsdk.20260818` (v60.32327.20260818) is a drop-in replacement for the 2023 SDK (v54.22876.20230702) that the
+`references/omax/toupcamsdk.20260818` (v60.32327.20260818) is a drop-in replacement for the 2023 SDK (v54.22876.20230702) that the
 tests ran against: every constant and method the backend uses is present, `PullImageV3`/`ToupcamFrameInfoV3` are unchanged,
 and the arm64 build still needs only GLIBC 2.17. Its layout differs (`linux/arm64/glibc/`, `mac/`), which the loader and
 `install_toupcam.py` now both handle. Its udev rule adds vendor id `04b4` next to `0547`; `packaging/99-toupcam.rules`
-has both. `toupnamsdk` (network cameras) and `uvchamsdk` (UVC-class cameras) are not used. `vendor/toupcam/` still holds the 2023 SDK.
+has both. `toupnamsdk` (network cameras) and `uvchamsdk` (UVC-class cameras) are not used.
+
+The Pi uses a `toupcamsdk.20260519` zip (also the 2026 layout) extracted into `vendor/toupcam/`. On the Mac `vendor/` is empty
+since the reference files moved to `references/`; `references/toupcam/` is the old `vendor/toupcam/` (2023 and 2026 files
+merged, loads as v60.32327.20260818). Run `install_toupcam.py` (see the Mac quick start) to repopulate `vendor/toupcam/`.
 
 ### Things found while implementing
 
@@ -95,12 +145,12 @@ has both. `toupnamsdk` (network cameras) and `uvchamsdk` (UVC-class cameras) are
 
 ## What the reference material contains
 
-### `fiji_original/fiji`
+### `references/fiji`
 Only the Fiji launcher/packaging repo (212 MB of the 214 MB is `.git`). No ImageJ source, jars or menu definitions. Useful for:
 - `luts/` (about 37 LUTs). Formats: raw 768-byte planar RGB, 800-byte NIH "ICOL" (32-byte header + 768 bytes), tab-separated text (`Index Red Green Blue`, header optional), float text (`cividis.txt`). Fire/Grays/Ice/Spectrum are built into `ij.jar` and must be regenerated.
 - A feature checklist. Core ImageJ behavior (Analyze Particles, Measure, thresholds, scale bar) must be reimplemented from the published ImageJ docs. Fiji is GPL, so **do not copy code**.
 
-### `imagepy_original/imagepy` (wxPython, last commit Feb 2024)
+### `references/imagepy` (wxPython, last commit Feb 2024)
 - `sciapp/` is a mostly GUI-agnostic core (`App`, `Manager`, `Image`, shapes/ROI, `Table`, `Filter`/`Simple` actions). It is not importable headless as shipped (`report.py` imports wx).
 - `sciwx/` and `imagepy/app` are wx-only. Plugins are discovered by file suffix (`*_plg.py`, `*_plgs.py`, `*_tol.py`) under `menus/`.
 - Needs numba, wxPython, vispy; has undeclared scipy/matplotlib; uses NumPy idioms removed or deprecated in NumPy 1.24+/2.x; untested on Python 3.13+. License text is ambiguous (4-clause-style file vs "BSD 3-clause" in `setup.py`).
@@ -113,12 +163,12 @@ Only the Fiji launcher/packaging repo (212 MB of the 214 MB is `.git`). No Image
   - The menu catalogue: File, Edit, Image, Process, Analysis, Table.
   - `RegionCounter`, which maps to `skimage.measure.regionprops`.
 
-### Camera SDK (`omax/`)
+### Camera SDK (`references/omax/`)
 
 | Item | Finding |
 |---|---|
-| `omax/ToupTekToupLite.x64.sh` | x86-64 only ToupLite GUI installer (no arch check, installs to `/usr/local/ToupLite`). **Will not run on the Pi 5. Not needed.** |
-| `omax/SDK/toupcamsdk.20230702.zip` | The real SDK, v54.22876.20230702, 633 files. This is what ImagePi uses. |
+| `references/omax/ToupTekToupLite.x64.sh` | x86-64 only ToupLite GUI installer (no arch check, installs to `/usr/local/ToupLite`). **Will not run on the Pi 5. Not needed.** |
+| `references/omax/SDK/toupcamsdk.20230702.zip` | The real SDK, v54.22876.20230702, 633 files. This is what ImagePi uses. |
 | `toupnamsdk.20230702.zip` | ToupTek *network* camera SDK. Not for this USB camera. Ignore. |
 | `OMAXTwainSetup.exe`, `OMAXDshowSetup.exe`, `UvcHamSetup.exe` | Windows TWAIN/DirectShow/UVC drivers. Irrelevant to the Pi. |
 Inside `toupcamsdk.20230702.zip`, the files we use (inspected read-only; nothing has been run yet):
@@ -136,12 +186,12 @@ API points that shape the design:
 - `Toupcam_HotPlug` is available on Linux and macOS. Register it for plug/unplug notifications, then re-run `EnumV2`. Also handle `EVENT_DISCONNECTED`.
 - On Linux a "permission denied" error means the udev rule is missing.
 - Camera specs (vendor page): 1/2.3" color CMOS, 4912x3684 at 5.6 fps, 2456x1842 at 18.1 fps, 1228x922 at 32.2 fps. A full-res RGB24 frame is about 54 MB.
-- **Licensing:** the SDK binaries are vendor-controlled. Do not commit them or the zip to a public repo. Keep them in a git-ignored `vendor/toupcam/` populated by an install script from the user's `omax/SDK` zip.
+- **Licensing:** the SDK binaries are vendor-controlled. Do not commit them or the zip to a public repo. Keep them in a git-ignored `vendor/toupcam/` populated by an install script from the user's `references/omax/SDK` zip.
 
 ### Risks not yet verified
 - Real Pi 5 USB3 throughput and fps at each camera resolution.
 - Qt rendering speed under the Pi's Wayland compositor (labwc/Wayfire).
-- aarch64 wheels for scikit-image, opencv-python-headless and scipy on Python 3.13.
+- aarch64 wheels for opencv-python-headless (the headless 5.0.0.93 aarch64 wheel exists on PyPI; installing it on the Pi is untested). scikit-image, scipy and PySide6 installed on the Pi (see "Verified vs. not verified").
 - The camera's USB product ID.
 
 ## Architecture
@@ -202,7 +252,7 @@ Design points:
    - Analyze Particles (size/circularity filters, exclude edges, overlays, summary).
    - Geometry from `regionprops`: area, perimeter, centroid, Feret, ellipse fit, solidity.
    - Area fraction and density, marker counting, and results-table statistics (descriptive, filtering, histograms, scatter, group stats).
-   - LUT library ported from `fiji_original/fiji/luts`. Stack ops (Z-project, extended depth of field). Stitching is a stretch goal.
+   - LUT library ported from `references/fiji/luts`. Stack ops (Z-project, extended depth of field). Stitching is a stretch goal.
 4. **Polish and packaging:** HiDPI and touch-friendly sizing, light/dark theme, `.desktop` launcher, Pi install script, docs, and a memory/profiling pass (18 MP x 16-bit stacks; the Pi 5 has 4, 8 or 16 GB).
 
 ## Verification
@@ -215,3 +265,7 @@ Design points:
   - Run threshold plus Analyze Particles on a test image.
   - Run live view at preview resolution, then snap a full-res frame and save a TIFF with metadata.
   - Watch RSS memory and CPU in `htop`.
+
+  `scripts/make_test_images.py` writes the images for the first four checks, including `known_shapes.png`, whose results are
+  exact: Analyze Particles finds 9 objects (six of 10000 px and three of 7845 px, 8 with "Exclude on edges"), and at 0.5 um/px
+  the areas read 2500 um² and 1961.25 um².

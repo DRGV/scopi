@@ -17,7 +17,7 @@ dependencies = [
     "imageio",
     "pandas",
     "matplotlib",
-    "PySide6",
+    "PySide6-Essentials",
 ]
 
 [project.optional-dependencies]

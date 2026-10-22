@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import threading
 import time
@@ -297,7 +298,9 @@ def test_real_sdk_loads():
     touptek._toupcam = None
     try:
         tc = touptek.load_sdk()
-        assert tc.Toupcam.Version().startswith(b"54.") or str(tc.Toupcam.Version()).startswith("54.")
+        version = tc.Toupcam.Version()
+        version = version.decode() if isinstance(version, bytes) else str(version)
+        assert re.match(r"\d+\.\d+", version), version  # any SDK build (2023 was 54.x, 2026 is 59.x or later)
     finally:
         touptek._toupcam = monkey
 
