@@ -25,6 +25,23 @@ def test_undo_redo(doc):
     assert not doc.redo()
 
 
+def test_undo_redo_restore_display_range_across_a_type_change():
+    data = (np.arange(60 * 80, dtype=np.uint16).reshape(60, 80) % 3264)
+    d = ImageDoc(data, "c16")
+    range16 = d.display_range
+    assert range16[1] > 255
+    d.replace_data(np.clip(data // 13, 0, 255).astype(np.uint8)[None], snapshot="8-bit")
+    assert d.display_range == (0.0, 255.0)
+    assert d.undo() and d.data.dtype == np.uint16 and d.display_range == range16   # was (0, 255): a washed-out image
+    assert d.redo() and d.data.dtype == np.uint8 and d.display_range == (0.0, 255.0)
+    # same pixel type: the user's current window is kept
+    d.undo()
+    d.set_display_range(100, 2000)
+    d.replace_data((data // 2)[None], snapshot="half")
+    d.undo()
+    assert d.display_range == (100.0, 2000.0)
+
+
 def test_undo_ring_bounded(doc):
     doc.UNDO_BYTES = doc.data.nbytes * 2
     for _ in range(10):

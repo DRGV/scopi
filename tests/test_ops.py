@@ -19,6 +19,17 @@ def test_registry_and_menu_tree():
     assert all(c.title for c in base.REGISTRY.values())
 
 
+@pytest.mark.parametrize("shape,sigma", [((60, 80), 0.3), ((60, 80), 2.0), ((200, 150), 7.5), ((9, 12), 20.0), ((1, 30), 1.0)])
+def test_gaussian_helper_equals_scipy(shape, sigma):
+    from imagepi.ops.filters import gaussian
+
+    a = np.random.default_rng(3).random(shape).astype(np.float32) * 1000
+    ref = ndi.gaussian_filter(a, sigma, mode="nearest")
+    assert np.allclose(gaussian(a, sigma), ref, atol=1e-2)
+    b = a.astype(np.float64)
+    assert np.allclose(gaussian(b, sigma), ndi.gaussian_filter(b, sigma, mode="nearest"), atol=1e-6)
+
+
 def test_gaussian_matches_scipy(session, doc):
     ref = ndi.gaussian_filter(doc.data[0].astype(np.float32), 2.0, mode="nearest").round().astype(np.uint8)
     run(session, doc, "Process>Filters>Gaussian Blur", sigma=2.0)
@@ -306,6 +317,9 @@ def test_analyze_particles_counts_and_geometry(session, doc):
     assert s["Count"] == 3 and s["Density"] == pytest.approx(3 / (100 * 120))
     assert doc.labels.max() >= 3
     assert len(session.results) == 3
+    assert len(session.summary) == 1 and session.summary.df.loc[0, "Count"] == 3     # shown under the results
+    run(session, doc, "Analyze>Clear Results")
+    assert len(session.results) == 0 and len(session.summary) == 0
 
 
 def test_analyze_particles_filters(session, doc):

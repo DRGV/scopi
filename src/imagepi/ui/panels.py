@@ -216,7 +216,7 @@ class DataFrameModel(QAbstractTableModel):
         v = self._df.iat[index.row(), index.column()]
         if role == Qt.ItemDataRole.DisplayRole:
             if isinstance(v, (float, np.floating)):
-                return "" if np.isnan(v) else f"{v:.4g}"
+                return "" if np.isnan(v) else f"{v:.6g}"   # 4 digits turned 10000 into 1e+04
             return "" if v is None else str(v)
         if role == Qt.ItemDataRole.TextAlignmentRole and isinstance(v, (int, float, np.number)):
             return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -229,9 +229,10 @@ class DataFrameModel(QAbstractTableModel):
 
 
 class ResultsPanel(QWidget):
-    def __init__(self, table: ResultsTable, parent=None):
+    def __init__(self, table: ResultsTable, summary_table: ResultsTable | None = None, parent=None):
         super().__init__(parent)
         self.table = table
+        self.summary_table = summary_table
         self.model = DataFrameModel(table.df)
         self.showing_summary = False
         lay = QVBoxLayout(self)
@@ -240,8 +241,19 @@ class ResultsPanel(QWidget):
         self.view.setSortingEnabled(False)
         self.view.setAlternatingRowColors(True)
         lay.addWidget(self.view)
+        self.summary_label = QLabel("Particle summary (one row per Analyze Particles run)")
+        self.summary_model = DataFrameModel(summary_table.df if summary_table is not None else None)
+        self.summary_view = QTableView()
+        self.summary_view.setModel(self.summary_model)
+        self.summary_view.setAlternatingRowColors(True)
+        self.summary_view.setMaximumHeight(90)
+        lay.addWidget(self.summary_label)
+        lay.addWidget(self.summary_view)
+        self._refresh_summary()
+        if summary_table is not None:
+            summary_table.listeners.append(lambda t: self._refresh_summary())
         row = QHBoxLayout()
-        for text, fn in (("Save CSV…", self.save_csv), ("Clear", self.table.clear), ("Summary", self._toggle_summary)):
+        for text, fn in (("Save CSV…", self.save_csv), ("Clear", self._clear), ("Summary", self._toggle_summary)):
             b = QPushButton(text)
             b.clicked.connect(fn)
             row.addWidget(b)
@@ -256,6 +268,18 @@ class ResultsPanel(QWidget):
         self.model.set_df(df)
         self.status.setText(f"{len(self.table)} rows")
         self.view.scrollToBottom()
+
+    def _refresh_summary(self) -> None:
+        df = self.summary_table.df if self.summary_table is not None else None
+        self.summary_model.set_df(df if df is not None else pd.DataFrame())
+        shown = df is not None and not df.empty
+        self.summary_label.setVisible(shown)
+        self.summary_view.setVisible(shown)
+
+    def _clear(self) -> None:
+        if self.summary_table is not None:
+            self.summary_table.clear()
+        self.table.clear()
 
     def _toggle_summary(self):
         self.showing_summary = not self.showing_summary

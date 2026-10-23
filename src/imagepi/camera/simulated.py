@@ -12,6 +12,7 @@ import numpy as np
 from .base import CameraBackend, CameraError, CameraInfo, Range
 
 _SYNTH_RES = [(2456, 1842), (1228, 922), (614, 461)]
+AUTO_EXPOSURE_TARGET = 110.0   # mean gray level the simulated auto exposure steers to (0-255)
 
 
 def synthetic_scene(w: int, h: int, t: float = 0.0, exposure_us: int = 10000, gain: int = 100, seed: int = 0) -> np.ndarray:
@@ -137,6 +138,8 @@ class SimulatedCamera(CameraBackend):
         else:
             w, h = _SYNTH_RES[self.resolution_index if res_index is None else res_index]
             f = synthetic_scene(w, h, time.monotonic(), self._exposure, self._gain, seed=1)
+            if self._auto_exp:
+                self._auto_adjust(f)
         if self._roi is not None:
             x, y, rw, rh = self._roi
             if not self._frames and res_index is not None and res_index != self.resolution_index:
@@ -144,6 +147,12 @@ class SimulatedCamera(CameraBackend):
                 x, y, rw, rh = (int(v * k) for v in (x, y, rw, rh))
             f = f[y:y + rh, x:x + rw]
         return f
+
+    def _auto_adjust(self, frame: np.ndarray) -> None:
+        """Steer the exposure so the mean gray level approaches the target (a real camera does this in firmware)."""
+        mean = float(frame[::8, ::8].mean())
+        ratio = AUTO_EXPOSURE_TARGET / max(mean, 1.0)
+        self._exposure = int(np.clip(self._exposure * ratio ** 0.5, 100, 1_000_000))
 
     def set_roi(self, x: int, y: int, w: int, h: int) -> None:
         full_w, full_h = self.resolutions[self.resolution_index]

@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 
 BACKGROUND = (40, 40, 40)
-OUTLINE = (255, 220, 0)
+OUTLINE = (255, 30, 60)   # red-orange: yellow vanished on the white objects of a thresholded image
 
 
 def _cv_ok(a: np.ndarray) -> np.ndarray:
@@ -48,13 +48,14 @@ class DisplayPipeline:
         elif crop.dtype in (np.uint8, np.uint16) and crop.ndim >= 2:
             n = 256 if crop.dtype == np.uint8 else 65536
             table = np.clip((np.arange(n, dtype=np.float32) - lo) * (255.0 / (hi - lo if hi > lo else 1.0)), 0, 255).astype(np.uint8)
-            idx = table[crop]
+            idx = cv2.LUT(crop, table) if crop.dtype == np.uint8 else table[crop]   # cv2.LUT is 8-bit only, and much faster than fancy indexing
         else:
             scale = 255.0 / (hi - lo if hi > lo else 1.0)
             idx = np.clip((crop.astype(np.float32) - lo) * scale, 0, 255).astype(np.uint8)
         if idx.ndim == 3:
             return np.ascontiguousarray(idx)
-        return (lut if lut is not None else _GRAYS)[idx]
+        # 3-channel table on a gray->RGB copy: about 15x faster than lut[idx] (fancy indexing was 30+ ms per 720p frame on the Pi)
+        return cv2.LUT(cv2.cvtColor(np.ascontiguousarray(idx), cv2.COLOR_GRAY2RGB), np.ascontiguousarray(lut if lut is not None else _GRAYS).reshape(1, 256, 3))
 
     def render(self, plane: np.ndarray, display_range: tuple[float, float], lut: np.ndarray | None,
                view: tuple[float, float, float, float], out_size: tuple[int, int], *, token=None,
@@ -108,6 +109,7 @@ class DisplayPipeline:
         edge[:, :-1] |= dx & (warped[:, :-1] > 0)
         edge[1:, :] |= dy & (warped[1:, :] > 0)
         edge[:-1, :] |= dy & (warped[:-1, :] > 0)
+        edge = cv2.dilate(edge.view(np.uint8), np.ones((2, 2), np.uint8)).astype(bool)   # 2 px wide, a 1 px line is easy to miss
         out[edge] = OUTLINE
 
 

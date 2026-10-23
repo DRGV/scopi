@@ -1,3 +1,4 @@
+import ctypes
 import os
 import re
 import sys
@@ -98,6 +99,24 @@ def test_simulated_unplug_event():
     assert events == ["disconnected"] and not cam.is_open
 
 
+def test_simulated_auto_exposure_steers_to_the_target():
+    from imagepi.camera.simulated import AUTO_EXPOSURE_TARGET
+
+    cam = SimulatedCamera()
+    cam.open()
+    cam.set_resolution(2)                       # 614x461: cheap frames
+    cam.set_exposure(100_000)                   # far too bright (saturated)
+    cam.set_auto_exposure(True)
+    for _ in range(30):
+        frame = cam._make()
+    assert cam.get_exposure() < 100_000
+    assert abs(float(frame.mean()) - AUTO_EXPOSURE_TARGET) < 25
+    cam.set_auto_exposure(False)
+    before = cam.get_exposure()
+    cam._make()
+    assert cam.get_exposure() == before         # manual exposure is left alone
+
+
 # ------------------------------------------------------------------ fake ToupTek SDK
 class FakeHR(Exception):
     def __init__(self, hr):
@@ -181,6 +200,7 @@ def make_fake_sdk(access_denied=False, busy_start=False):
             info.width, info.height = w, h
             if buf is None:
                 return
+            ctypes.c_char_p.from_param(buf)   # the real wrapper declares c_char_p: a bytearray raises ctypes.ArgumentError
             assert row_pitch == -1, "must request zero-padded rows"
             bpp = 6 if bits == 48 else 3
             assert len(buf) >= w * h * bpp
@@ -242,6 +262,43 @@ def test_touptek_permission_denied(monkeypatch):
         touptek.TouptekCamera().open("fake-id")
 
 
+def test_touptek_frame_buffer_is_accepted_by_c_char_p(fake_sdk):
+    cam = touptek.TouptekCamera()
+    cam.open("fake-id")
+    for bits in (8, 16):
+        cam._bits = bits
+        buf = cam._alloc(64, 48)
+        ctypes.c_char_p.from_param(buf)
+        assert len(buf) == 64 * 48 * (6 if bits == 16 else 3)
+    with pytest.raises(TypeError):
+        ctypes.c_char_p.from_param(bytearray(4))   # what the first Pi run passed
+
+
+def test_touptek_pull_reports_sdk_errors_but_not_pending(monkeypatch):
+    sdk = make_fake_sdk()
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    cam = touptek.TouptekCamera()
+    cam.open("fake-id")
+    cam.start(lambda: None)
+    cam._frame_ready.set()
+    original = sdk.cams[0].PullImageV3
+
+    def pending(*a):
+        raise FakeHR(0x8000000A)
+
+    sdk.cams[0].PullImageV3 = pending
+    assert cam.pull() is None                      # E_PENDING: no new frame, not an error
+    sdk.cams[0].PullImageV3 = original
+
+    def broken(*a):
+        raise FakeHR(0x8007001F)
+
+    cam._frame_ready.set()
+    sdk.cams[0].PullImageV3 = broken
+    with pytest.raises(CameraError, match="E_GEN_FAILURE"):
+        cam.pull()
+
+
 def test_touptek_start_busy_names_the_error(monkeypatch):
     monkeypatch.setattr(touptek, "_toupcam", make_fake_sdk(busy_start=True))
     cam = touptek.TouptekCamera()
@@ -269,6 +326,38 @@ def test_bringup_camdiag_reports_start_failure_per_resolution(monkeypatch, capsy
     out = capsys.readouterr().out
     assert "SDK version: 60.0.fake" in out and "Open: ok" in out
     assert out.count("start FAILED  E_BUSY (0x800700aa)") == 2    # both fake resolutions, none aborts the run
+
+
+def test_bringup_camera_reports_each_resolution_and_pull_errors(monkeypatch, capsys):
+    sdk = make_fake_sdk(busy_start=True)
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    bringup = _load_bringup()
+    assert bringup.cmd_camera(types.SimpleNamespace(secs=0.05)) == 1
+    out = capsys.readouterr().out
+    assert out.count("FAILED  failed to start camera: E_BUSY") == 2         # both fake resolutions are tried
+
+    sdk = make_fake_sdk()
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+
+    real_open = sdk.Toupcam.Open
+
+    class Broken(sdk.Toupcam):
+        @staticmethod
+        def Open(cid):
+            cam = real_open(cid)
+            cam.PullImageV3 = lambda *a: (_ for _ in ()).throw(FakeHR(0x8007001F))
+            return cam
+
+    sdk.Toupcam = Broken
+    original_pull_ready = touptek.TouptekCamera.pull
+
+    def pull_ready(self):
+        self._frame_ready.set()          # the fake SDK never signals a frame by itself
+        return original_pull_ready(self)
+
+    monkeypatch.setattr(touptek.TouptekCamera, "pull", pull_ready)
+    assert bringup.cmd_camera(types.SimpleNamespace(secs=0.05)) == 1
+    assert "E_GEN_FAILURE" in capsys.readouterr().out
 
 
 def test_bringup_camdiag_pulls_frames(monkeypatch, capsys):
@@ -423,6 +512,49 @@ def test_live_view_snap_and_disconnect(win, qtbot, monkeypatch):
     qtbot.waitUntil(lambda: not ctl.connected, timeout=5000)
     assert msgs and "disconnected" in msgs[-1]
     assert win._live_tab is None
+
+
+def test_exposure_applies_without_enter_and_follows_auto(win, qtbot):
+    cp, ctl = win.camera_panel, win.camera
+    cp.connect_btn.click()
+    cp.res_combo.setCurrentIndex(2)
+    ctl.backend.fps = 60
+    cp.live_btn.click()
+    qtbot.waitUntil(lambda: win._live_tab is not None and win._live_tab._img is not None, timeout=5000)
+
+    cp.exp_spin.setValue(40.0)                  # no Enter, no focus change
+    qtbot.waitUntil(lambda: ctl.backend.get_exposure() == 40000, timeout=3000)
+
+    cp.auto_exp.setChecked(True)
+    assert ctl.backend.get_auto_exposure() and not cp.exp_spin.isEnabled()
+    qtbot.waitUntil(lambda: ctl.backend.get_exposure() != 40000, timeout=5000)   # the camera moves it
+    qtbot.waitUntil(lambda: abs(cp.exp_spin.value() * 1000 - ctl.backend.get_exposure()) < 3000, timeout=5000)
+    assert ctl.backend.get_auto_exposure()      # following the camera did not turn auto exposure off
+
+    cp.auto_exp.setChecked(False)
+    assert cp.exp_spin.isEnabled()
+
+
+def test_pull_failure_is_reported_once(qtbot):
+    from imagepi.camera import SimulatedCamera
+    from imagepi.ui.camera_panel import CameraController
+
+    class Broken(SimulatedCamera):
+        def pull(self):
+            raise CameraError("failed to read a frame: E_GEN_FAILURE")
+
+    ctl = CameraController()
+    msgs = []
+    ctl.error.connect(msgs.append)
+    ctl.connect_camera(Broken(), "sim-0")
+    try:
+        for _ in range(5):
+            ctl.frame_available.emit()
+        qtbot.waitUntil(lambda: bool(msgs), timeout=3000)
+        qtbot.wait(200)
+        assert msgs == ["failed to read a frame: E_GEN_FAILURE"]
+    finally:
+        ctl.disconnect_camera()
 
 
 def test_timelapse(win, qtbot, tmp_path):

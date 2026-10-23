@@ -155,6 +155,28 @@ def test_para_dialog_widgets(qtbot):
     assert dlg.whole_stack
 
 
+def test_float_params_with_a_bounded_range_get_a_slider(qtbot):
+    from imagepi.ui.para_dialog import ParaDialog
+
+    op = base.REGISTRY["Process>Filters>Gaussian Blur"]()
+    dlg = ParaDialog(op, op.view, can_preview=True, can_stack=False)
+    qtbot.addWidget(dlg)
+    f = dlg._fields["sigma"]
+    assert f.slider.maximum() == 499 and dlg.para() == {"sigma": 2.0}
+    got = []
+    dlg.preview_requested.connect(got.append)
+    dlg.preview_box.setChecked(True)
+    f.slider.setValue(99)                         # 0.1 + 99 * 0.1
+    assert dlg.para()["sigma"] == pytest.approx(10.0)
+    qtbot.waitUntil(lambda: got and got[-1]["sigma"] == pytest.approx(10.0), timeout=2000)
+    f.spin.setValue(3.0)
+    assert f.slider.value() == round((3.0 - 0.1) * 10)
+    op = base.REGISTRY["Analyze>Analyze Particles"]()
+    wide = ParaDialog(op, op.view, can_preview=False, can_stack=False)
+    qtbot.addWidget(wide)
+    assert not hasattr(wide._fields["min_size"], "slider") and hasattr(wide._fields["min_circ"], "slider")
+
+
 def test_manual_threshold_view_adapts_to_dtype():
     op = base.REGISTRY["Image>Adjust>Manual Threshold"]()
     d = ImageDoc(np.zeros((4, 4), np.uint16) + 100)
@@ -257,6 +279,23 @@ def test_labels_overlay_renders(win, qtbot, blobs):
     win.runner._execute(base.REGISTRY["Analyze>Analyze Particles"](), doc, {}, False)
     assert doc.labels is not None and len(win.session.results) == 3
     assert not win.current_canvas().grab().toImage().isNull()
+
+
+def test_results_panel_shows_particle_summary_and_whole_numbers(win, qtbot, blobs):
+    doc = win.add_doc(ImageDoc(blobs, "a"))
+    win.runner._execute(base.REGISTRY["Analyze>Analyze Particles"](), doc, {}, False)
+    win._op_finished(None)
+    panel = win.results_panel
+    assert win.results_dock.isVisible() and panel.summary_view.isVisible() and panel.summary_model.rowCount() == 1
+    cols = list(panel.summary_model._df.columns)
+    assert "Count" in cols and "Total Area" in cols and "%Area" in cols
+    from imagepi.ui.panels import DataFrameModel
+    import pandas as pd
+
+    m = DataFrameModel(pd.DataFrame({"Area": [10000.0, 81369.0, 1961.25, 0.0719]}))
+    assert [m.data(m.index(i, 0)) for i in range(4)] == ["10000", "81369", "1961.25", "0.0719"]
+    panel._clear()
+    assert len(win.session.results) == 0 and len(win.session.summary) == 0 and not panel.summary_view.isVisible()
 
 
 def test_close_tab_prompts_when_changed(win, qtbot, blobs, monkeypatch):

@@ -73,6 +73,7 @@ class ClearResults(Simple):
 
     def run(self, doc, para, session):
         session.results.clear()
+        session.summary.clear()
 
 
 @register
@@ -187,6 +188,7 @@ class AnalyzeParticles(Simple):
                        "%Area": 100.0 * total / region_area if region_area else 0.0,
                        "Density": len(df) / region_area if region_area else 0.0, "Unit": doc.calibration.unit}
             doc.metadata["particle_summary"] = summary
+            session.summary.add_row(**summary)
         doc.notify("labels")
         return df
 

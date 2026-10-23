@@ -113,8 +113,13 @@ def cmd_camera(a) -> int:
                 continue
             t0 = time.time()
             frames = 0
+            errors: set[str] = set()
             while time.time() - t0 < a.secs:
-                f = cam.pull()
+                try:
+                    f = cam.pull()
+                except CameraError as e:
+                    errors.add(str(e))
+                    f = None
                 if f is not None:
                     frames += 1
                 else:
@@ -122,7 +127,9 @@ def cmd_camera(a) -> int:
             cam.stop()
             dt = time.time() - t0
             mb = frames * w * h * 3 / 1e6
-            print(f"{w}x{h}: {frames / dt:5.1f} fps, {mb / dt:6.1f} MB/s decoded RGB24")
+            print(f"{w}x{h}: {frames / dt:5.1f} fps, {mb / dt:6.1f} MB/s decoded RGB24" + (f"   errors: {sorted(errors)}" if errors else ""))
+            if errors and not frames:
+                failed += 1
     finally:
         cam.close()
     return 1 if failed else 0
@@ -130,6 +137,7 @@ def cmd_camera(a) -> int:
 
 def cmd_camdiag(a) -> int:
     """Use the vendor SDK directly, step by step, so a failure can be pinned on the camera/USB/SDK rather than on ImagePi."""
+    import ctypes
     import os
 
     from imagepi.camera.base import CameraError
@@ -192,11 +200,15 @@ def cmd_camdiag(a) -> int:
             try:
                 cam.put_eSize(idx)
                 bw, bh = cam.get_Size()
-                buf = bytearray(bw * bh * 3)
+                buf = ctypes.create_string_buffer(bw * bh * 3)   # the wrapper's argument is c_char_p: bytearray is rejected
                 cam.StartPullModeWithCallback(on_event, None)
             except tc.HRESULTException as ex:
                 failed += 1
                 print(f"[{idx}] {w}x{h}: start FAILED  {_hr_text(ex)}")
+                continue
+            except Exception as ex:
+                failed += 1
+                print(f"[{idx}] {w}x{h}: start FAILED  {type(ex).__name__}: {ex}")
                 continue
             info = tc.ToupcamFrameInfoV3()
             frames, pull_err = 0, set()
@@ -209,6 +221,9 @@ def cmd_camdiag(a) -> int:
                     if _hr(ex) != 0x8000000A:   # E_PENDING just means "no new frame yet"
                         pull_err.add(_hr_text(ex))
                     time.sleep(0.005)
+                except Exception as ex:
+                    pull_err.add(f"{type(ex).__name__}: {ex}")
+                    break
             cam.Stop()
             dt = time.time() - t0
             print(f"[{idx}] {w}x{h}: start ok, {frames} frames pulled ({frames / dt:.1f} fps), events {seen or 'none'}, pull errors {sorted(pull_err) or 'none'}")

@@ -95,7 +95,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
 
         self.display_panel = DisplayPanel()
-        self.results_panel = ResultsPanel(self.session.results)
+        self.results_panel = ResultsPanel(self.session.results, self.session.summary)
         self.roi_panel = RoiManagerPanel()
         self.camera_panel = CameraPanel(self.camera)
         self.display_dock = self._dock("Brightness / Contrast", self.display_panel, Qt.DockWidgetArea.RightDockWidgetArea)
@@ -480,7 +480,7 @@ class MainWindow(QMainWindow):
         d = self.current_doc()
         if d is not None and d.labels is not None:
             d.notify("labels")
-        if self.session.results and len(self.session.results):
+        if len(self.session.results) or len(self.session.summary):
             self.results_dock.show()
 
     # ---------------------------------------------------------------- tools

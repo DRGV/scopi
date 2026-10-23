@@ -24,13 +24,26 @@ class Mean(Filter):
         return ndi.uniform_filter(to_float(img), size=2 * para["radius"] + 1, mode="nearest")
 
 
+def gaussian(a: np.ndarray, sigma: float) -> np.ndarray:
+    """Gaussian blur with SciPy's kernel (truncated at 4 sigma, edge pixels replicated), run by OpenCV.
+
+    Same result to float precision, but OpenCV is SIMD and multi-threaded: 12 ms instead of 400 ms for an 18 MP plane on
+    a Mac, and the Pi's 0.66 s (gray) / 2 s (RGB) for sigma 2 were the slowest thing in the benchmark.
+    """
+    r = int(4.0 * sigma + 0.5)
+    try:
+        return cv2.GaussianBlur(a, (2 * r + 1, 2 * r + 1), sigma, borderType=cv2.BORDER_REPLICATE)
+    except cv2.error:
+        return ndi.gaussian_filter(a, sigma, mode="nearest")
+
+
 @register
 class Gaussian(Filter):
     title, category = "Gaussian Blur", CAT
     view = [Float("sigma", "Sigma", (0.1, 50.0), 2.0, 1, "px")]
 
     def run(self, img, para):
-        return ndi.gaussian_filter(to_float(img), para["sigma"], mode="nearest")
+        return gaussian(to_float(img), para["sigma"])
 
 
 @register

@@ -9,6 +9,7 @@ consumer. The callback must return quickly and must never call Stop/Close (deadl
 
 from __future__ import annotations
 
+import ctypes
 import importlib.util
 import os
 import platform
@@ -74,6 +75,7 @@ def _hr(ex) -> int:
 
 
 E_ACCESSDENIED = 0x80070005
+E_PENDING = 0x8000000A
 
 # HRESULT -> (name, hint). The SDK's raw numbers are opaque, and these end up in the GUI status line.
 _HR_INFO = {
@@ -282,9 +284,11 @@ class TouptekCamera(CameraBackend):
     def _dims(self) -> tuple[int, int]:
         return self._need().get_Size()
 
-    def _alloc(self, w: int, h: int) -> bytearray:
+    def _alloc(self, w: int, h: int):
+        """Frame buffer. The vendor wrapper declares the argument as c_char_p, which rejects a bytearray
+        (ctypes.ArgumentError on the first pull); a ctypes char array is accepted and numpy can wrap it."""
         bpp = 6 if self._bits == 16 else 3
-        return bytearray(w * h * bpp)
+        return ctypes.create_string_buffer(w * h * bpp)
 
     def start(self, on_frame, on_event=None) -> None:
         cam = self._need()
@@ -340,8 +344,10 @@ class TouptekCamera(CameraBackend):
         try:
             # rowPitch -1 = zero padding (rows are exactly width*bytes-per-pixel)
             self._cam.PullImageV3(self._buf, 0, 48 if self._bits == 16 else 24, -1, info)
-        except self._tc.HRESULTException:
-            return None
+        except self._tc.HRESULTException as ex:
+            if _hr(ex) == E_PENDING:   # no new frame yet
+                return None
+            raise CameraError(f"failed to read a frame: {_hr_text(ex)}") from ex
         return self._to_array(self._buf, info.width, info.height, self._bits)
 
     def snap(self, bits: int = 8, timeout: float = 10.0) -> np.ndarray:

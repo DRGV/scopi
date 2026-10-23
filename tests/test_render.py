@@ -78,12 +78,38 @@ def test_int32_plane_supported():
     render(a, (0, 0, 4, 4), (4, 4), rng=(0, 15))
 
 
+def test_window_matches_the_plain_numpy_reference():
+    from imagepi.core import luts
+    from imagepi.ui.render import DisplayPipeline
+
+    rng = np.random.default_rng(1)
+    g8 = rng.integers(0, 256, (37, 53), dtype=np.uint8)
+    g16 = rng.integers(0, 4000, (37, 53), dtype=np.uint16)
+    rgb = rng.integers(0, 256, (37, 53, 3), dtype=np.uint8)
+    lut = rng.integers(0, 256, (256, 3), dtype=np.uint8)
+
+    def reference(a, lo, hi, lut):
+        n = 256 if a.dtype == np.uint8 else 65536
+        table = np.clip((np.arange(n, dtype=np.float32) - lo) * (255.0 / (hi - lo)), 0, 255).astype(np.uint8)
+        idx = table[a]
+        return idx if idx.ndim == 3 else lut[idx]
+
+    for a, lo, hi in ((g8, 0, 255), (g8, 30, 200), (g16, 100, 3000), (rgb, 20, 220)):
+        out = DisplayPipeline.window(a, lo, hi, lut)
+        assert out.shape == a.shape[:2] + (3,) and out.dtype == np.uint8 and out.flags["C_CONTIGUOUS"]
+        expect = lut[a] if (a is g8 and (lo, hi) == (0, 255)) else reference(a, lo, hi, lut)
+        assert np.array_equal(out, expect), (a.dtype, lo, hi)
+    assert np.array_equal(DisplayPipeline.window(g8[::2, ::3], 0, 255, luts.grays()), np.repeat(g8[::2, ::3, None], 3, axis=2))
+
+
 def test_label_outlines():
     a = np.full((20, 20), 100, np.uint8)
     lab = np.zeros((20, 20), np.int32)
     lab[5:15, 5:15] = 1
     out = render(a, (0, 0, 20, 20), (20, 20), labels=lab)
-    assert out[5, 8].tolist() == [255, 220, 0] and out[10, 10, 0] == 100 and out[0, 0, 0] == 100
+    from imagepi.ui.render import OUTLINE
+
+    assert out[5, 8].tolist() == list(OUTLINE) and out[10, 10, 0] == 100 and out[0, 0, 0] == 100
 
 
 def test_degenerate_inputs():

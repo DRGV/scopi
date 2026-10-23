@@ -67,8 +67,9 @@ class ImageDoc:
         self.changed = False
         self.version = 0  # bumped whenever pixel data is replaced (cache key for the display pipeline)
         self.listeners: list = []
-        self._undo: deque[tuple[str, np.ndarray]] = deque()
-        self._redo: list[tuple[str, np.ndarray]] = []
+        # (label, pixel data, display range): the range is restored when undo/redo changes the pixel type
+        self._undo: deque[tuple[str, np.ndarray, tuple[float, float]]] = deque()
+        self._redo: list[tuple[str, np.ndarray, tuple[float, float]]] = []
         self.reset_range()
 
     # ---- geometry ----
@@ -138,12 +139,11 @@ class ImageDoc:
 
     # ---- undo ----
     def snapshot(self, label: str = "") -> None:
-        self._undo.append((label, self.data.copy()))
+        self._undo.append((label, self.data.copy(), self.display_range))
         self._redo.clear()
-        total = sum(a.nbytes for _, a in self._undo)
+        total = sum(e[1].nbytes for e in self._undo)
         while len(self._undo) > 1 and total > self.UNDO_BYTES:
-            _, a = self._undo.popleft()
-            total -= a.nbytes
+            total -= self._undo.popleft()[1].nbytes
 
     def can_undo(self) -> bool:
         return bool(self._undo)
@@ -151,24 +151,27 @@ class ImageDoc:
     def undo(self) -> bool:
         if not self._undo:
             return False
-        label, prev = self._undo.pop()
-        self._redo.append((label, self.data))
-        self.data = prev
-        self.version += 1
-        self.plane = min(self.plane, self.n_frames - 1)
-        self.notify("data")
+        label, prev, rng = self._undo.pop()
+        self._redo.append((label, self.data, self.display_range))
+        self._swap_data(prev, rng)
         return True
 
     def redo(self) -> bool:
         if not self._redo:
             return False
-        label, nxt = self._redo.pop()
-        self._undo.append((label, self.data))
-        self.data = nxt
+        label, nxt, rng = self._redo.pop()
+        self._undo.append((label, self.data, self.display_range))
+        self._swap_data(nxt, rng)
+        return True
+
+    def _swap_data(self, data: np.ndarray, display_range: tuple[float, float]) -> None:
+        """Install undo/redo data. A window from another pixel type (0..255 on 16-bit data) would show a blank image."""
+        if data.dtype != self.data.dtype:
+            self.display_range = display_range
+        self.data = data
         self.version += 1
         self.plane = min(self.plane, self.n_frames - 1)
         self.notify("data")
-        return True
 
     def replace_data(self, data: np.ndarray, *, snapshot: str | None = None, keep_range: bool = False) -> None:
         if snapshot is not None:

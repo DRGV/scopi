@@ -13,6 +13,8 @@ def main(argv: list[str] | None = None) -> int:
     # Native Wayland on the Pi when available (Qt picks it automatically; this only sets a default).
     if sys.platform.startswith("linux") and os.environ.get("WAYLAND_DISPLAY") and "QT_QPA_PLATFORM" not in os.environ:
         os.environ["QT_QPA_PLATFORM"] = "wayland"
+        # Qt's Wayland text-input plugin warns "Trying to disable ... but 0x0 is focused" on every focus change; harmless noise.
+        os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.wayland.textinput.warning=false")
 
     from PySide6.QtCore import QSettings
     from PySide6.QtWidgets import QApplication

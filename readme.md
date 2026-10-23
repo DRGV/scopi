@@ -23,7 +23,7 @@ Reference material (the original Fiji and ImagePy checkouts, the OMAX downloads 
 
 # Implementation Plan
 
-Status: **milestones 1-4 implemented and tested on the dev Mac. Pi 5 bring-up (milestone 0) is in progress: ImagePi installs and launches on the Pi 5 and the camera is detected and opened, but starting the live view fails with `E_BUSY` (0x800700aa), so no frame from the real camera has been seen yet.** Last updated 2026-10-22. See "Implementation status" below for what is and is not verified.
+Status: **milestones 1-4 implemented and tested on the dev Mac. Pi 5 bring-up (milestone 0) is in progress: ImagePi installs, launches and runs fast on the Pi 5, and the simulated camera works in the app. The real camera enumerates, opens and starts, but no frame from it has been shown yet: the first pull failed on a bug in ImagePi (a `bytearray` buffer the SDK wrapper rejects), fixed on the Mac and not yet re-tested on the Pi.** Last updated 2026-10-23. See "Implementation status" below for what is and is not verified.
 
 ## Implementation status
 
@@ -32,7 +32,7 @@ Status: **milestones 1-4 implemented and tested on the dev Mac. Pi 5 bring-up (m
 ```
 python3.13 -m venv .venv && .venv/bin/pip install -e ".[test]"
 .venv/bin/python -m imagepi [image files...]      # or: .venv/bin/imagepi
-.venv/bin/python -m pytest                         # 144 tests (143 pass, 1 skips without the SDK); UI tests run offscreen
+.venv/bin/python -m pytest                         # 159 tests (158 pass, 1 skips without the SDK); UI tests run offscreen
 python scripts/install_toupcam.py references/omax/toupcamsdk.20260818   # camera SDK (folder or zip) -> vendor/toupcam (git-ignored)
 python scripts/install_luts.py references/fiji/luts                     # optional: Fiji LUTs -> ~/.imagepi/luts
 python scripts/make_test_images.py                                      # test images -> ~/imagepi-test (18 MP frame, known shapes)
@@ -82,7 +82,7 @@ Found during the first Pi run (2026-10-22: Pi 5, Python 3.13.5, glibc 2.41, aarc
 
 | Milestone | State | Where |
 |---|---|---|
-| 0 Pi bring-up | **In progress.** Round 1 (2026-10-22): the install script exited silently and `opencv-python` (GUI build) had been installed instead of the headless one; both fixed. Round 2: `install_pi.sh` completes, `pi_bringup.py check` passes, Qt platform is wayland, the app launches and its menus and buttons work, the camera (`U3CMOS18000KPA`) is listed and connects, but Start live view fails: `StartPullModeWithCallback` returns `E_BUSY` (0x800700aa). Round 3 (`references/test3.txt`) isolates the cause with `pi_bringup.py camdiag`. | `scripts/`, `packaging/` |
+| 0 Pi bring-up | **In progress.** Round 1 (2026-10-22): the install script exited silently and `opencv-python` (GUI build) had been installed instead of the headless one; both fixed. Round 2 (2026-10-22/23): install, `pi_bringup.py check`, the 159-test suite, launch under Wayland, the desktop launcher, 18 MP pan/zoom, the test-image checks and the simulated camera all ran on the Pi (findings fixed, see below). The real camera (`U3CMOS18000KPA`, USB 3, 5000M) enumerates and opens; the first run's `StartPullModeWithCallback` returned `E_BUSY` (0x800700aa; probably the GUI still held the camera, not confirmed) and the next run's first pull failed with `ctypes.ArgumentError` (a `bytearray` frame buffer; fixed). Round 3 (`references/test3.txt`) re-tests the camera and every changed behaviour. | `scripts/`, `packaging/` |
 | 1 MVP | Done. `ImageDoc` (stack, calibration, LUT, ROI, memory-bounded undo), readers/writers (PNG/JPEG/BMP/TIFF/ImageJ-TIFF/OME-TIFF/NPY, 8/16-bit, RGB, stacks, DICOM if `pydicom` is installed), canvas with mip pyramid and vector ROI overlays, 8 ROI tools plus ROI manager, Measure with calibration and scale bar, filters, morphology, thresholds, declarative parameter dialogs with debounced live preview on a crop, macro record/replay/batch, plugin loader. | `src/imagepi/{core,io,ops,ui,plugins}` |
 | 2 Camera | Done against a simulated backend and a fake SDK; the real SDK library loads on macOS. `CameraBackend` ABC, ToupTek backend (pull mode, `PullImageV3`, hotplug, disconnect handling, permission error hint), V4L2/OpenCV fallback, simulated backend (synthetic scene or folder/video replay), live-view panel, snap with metadata, time-lapse, per-objective calibration presets. | `src/imagepi/camera`, `ui/camera_panel.py` |
 | 3 Analysis | Done. Connected components, marker watershed, SLIC, Felzenszwalb, Random Walker; Analyze Particles (size/circularity/edge filters, outlines, summary and density); `regionprops` geometry (area, perimeter, centroid, Feret, ellipse, solidity); area fraction; marker counting; results statistics (summary, filter, group-by); Z-project; extended depth of field; Fiji LUT loader (raw, ICOL, text, float text). | `ops/{analyze,segment,stack}.py`, `core/luts.py` |
@@ -92,28 +92,37 @@ Not done: stitching (stretch goal), pixel classifier (scikit-learn, "later"), a 
 
 ### Verified vs. not verified
 
-Verified (dev Mac, Python 3.13, arm64): the pytest suite (143 pass; the 144th, `test_real_sdk_loads`, skips unless an SDK is in
+Verified (dev Mac, Python 3.13, arm64): the pytest suite (158 pass; the 159th, `test_real_sdk_loads`, skips unless an SDK is in
 `vendor/toupcam/`), including golden checks against scikit-image/SciPy values,
 ROI mask/area/calibration cases, the 0.01 mm calibration-slide arithmetic, file round trips, simulated-camera live view,
 snap, time-lapse and unplug, and the ToupTek backend driven by a fake SDK. `libtoupcam.dylib` loads and reports version
 54.22876.20230702 (2023 SDK) and 60.32327.20260818 (2026 SDK); `test_real_sdk_loads` accepts any SDK version. Offscreen
 screenshots of the light and dark themes were checked by eye.
 
-Verified on the Pi 5 (2026-10-22, Raspberry Pi 5 Model B Rev 1.1, 16 GB, Raspberry Pi OS Trixie, kernel 6.18, Python 3.13.5, glibc 2.41):
-`packaging/install_pi.sh` runs to the end (apt libraries, venv, `pip install -e`, SDK extract, udev rule, desktop launcher);
-the wheels are numpy 2.5.4, scipy 1.18.1, scikit-image 0.26.0, pandas 3.1.0, matplotlib 3.11.2, PySide6-Essentials 6.12.0 and
-opencv-python-headless 5.0.0.93; `pi_bringup.py check` passes and the Qt platform is `wayland`; the app launches and its menus and
-buttons work. `benchmark.py` on an 18 MP 8-bit gray image (1280x720 viewport): first paint 36 ms, zoom 10-28 ms, Median r=3 54 ms,
-Otsu threshold 106 ms, Gaussian sigma 2 657 ms, peak RSS 354 MB. The camera (`lsusb`: `0547:3018 Anchor Chips USB3.0 Camera`, on the USB 3 bus) is
-enumerated by the SDK as `U3CMOS18000KPA` with resolutions 4912x3684, 2456x1842 and 1228x922, 1.25 um pixels, and `Open` succeeds.
-`StartPullModeWithCallback` then fails with `E_BUSY` (0x800700aa) in the bring-up script and the GUI shows "No live image"; the cause is not yet known.
+Verified on the Pi 5 (2026-10-22/23, Raspberry Pi 5 Model B Rev 1.1, 16 GB, Raspberry Pi OS Trixie, kernel 6.18, Python 3.13.5, glibc 2.41,
+27 W supply, `get_throttled` 0x0, 49 C): `packaging/install_pi.sh` runs to the end in about 2 minutes (apt libraries, venv, `pip install -e`,
+SDK extract, udev rule, desktop launcher); the wheels are numpy 2.5.4, scipy 1.18.1, scikit-image 0.26.0, pandas 3.1.0, matplotlib 3.11.2,
+PySide6-Essentials 6.12.0 and opencv-python-headless 5.0.0.93 (so `cv2` no longer overrides Qt's plugin path); `pi_bringup.py check` passes, the Qt
+platform is `wayland`, and the 144 tests then in the suite all passed. The app launches from the terminal and from the menu, and quits at
+once. 18 MP, pan/zoom through the real canvas (`pi_bringup.py render`): repaint at fit 35.7 ms, pan at 100% 31.0 ms, zoom sweep 23.9 ms median
+(p95 75 ms); by eye "very smooth". `benchmark.py` (18 MP, 1280x720 viewport): gray 8-bit first paint 54 ms, Median r=3 54 ms, Otsu 103 ms,
+Gaussian sigma 2 658 ms; RGB 8-bit Gaussian 2.0 s, Median r=3 235 ms, Otsu 470 ms; RGB 16-bit Gaussian 2.1 s; peak RSS 353 to 536 MB.
+Test images: Analyze Particles on `cells_gray.png` found 80 particles (same as the Mac); the other `known_shapes.png` steps (threshold, edge exclusion, scale, undo, ROI tools) raised no problems, though the exact areas were not reported; the 18 MP RGB image
+opens instantly and uses about 760 MB; theme is remembered; the simulated camera runs in the app (about 14 fps, limited by the simulator's
+own frame generation, 42 ms per frame on the Mac) and time-lapse saved 3 files. The camera (`lsusb`: `0547:3018 Anchor Chips USB3.0 Camera`, 5000M,
+device node `crw-rw-rw-`) is enumerated by the SDK as `U3CMOS18000KPA` with resolutions 4912x3684, 2456x1842 and 1228x922, 1.25 um pixels, and
+`Open` succeeds. Round 2's findings, all fixed on the Mac and awaiting re-test on the Pi: the camera's `PullImageV3` was given a `bytearray` (the
+vendor wrapper's `c_char_p` argument rejects it), pull errors were swallowed silently, outlines were yellow and 1 px (invisible on white objects),
+the particle summary was computed but never shown, Undo after Image > Type > 8-bit left the 0-255 display range on 16-bit data (a white
+image), Gaussian preview had no slider, exposure only applied on Enter, the simulated auto exposure did nothing, and the Results table showed
+10000 as `1e+04`. Gaussian Blur and the gray display path now use OpenCV (Mac, 18 MP gray: Gaussian 449 to 57 ms, fit repaint about 6 ms).
 
 On the dev Mac an 18 MP 8-bit image repaints in about 20 ms (fit, 100%, 25% and 400% zoom) and a 7x7 median takes
 about 33 ms; peak RSS for a 16-bit RGB 18 MP image was about 0.8 GB. These are Mac numbers, not Pi numbers.
 
 **Not verified, and needing the hardware:**
-- On the Pi 5: the pytest suite, the desktop launcher, `pi_bringup.py render` and the GUI checks with the test images (Parts C to G of `references/test2.txt` were not reported), USB 3 throughput and fps at each camera resolution.
-- Any real camera: a started live view (currently `E_BUSY`), the RGB byte order and upside-down assumptions (the SDK header says RGB / not flipped on Linux and macOS, and ImagePi sets both options explicitly), 16-bit RGB48 pull, hardware ROI crop, hotplug events.
+- On the Pi 5: every fix listed above, the saving of an 18 MP image and the Gaussian time on it, USB 3 throughput and fps at each camera resolution.
+- Any real camera: a live view with frames (the pull bug is fixed but untested on the camera), the RGB byte order and upside-down assumptions (the SDK header says RGB / not flipped on Linux and macOS, and ImagePi sets both options explicitly), 16-bit RGB48 pull, hardware ROI crop, hotplug events.
 - The `V4L2Camera` fallback and DICOM reading (no device / `pydicom` not installed here).
 - The `imagepi.plugins` entry-point route (folder discovery is tested).
 
@@ -193,7 +202,7 @@ API points that shape the design:
 - **Licensing:** the SDK binaries are vendor-controlled. Do not commit them or the zip to a public repo. Keep them in a git-ignored `vendor/toupcam/` populated by an install script from the user's `references/omax/SDK` zip.
 
 ### Risks not yet verified
-- Why `StartPullModeWithCallback` returns `E_BUSY` on the Pi. Candidates: another process holding the camera, the Linux `usbfs_memory_mb` limit for large transfers, USB power or bandwidth, the 2026-05-19 SDK build. `pi_bringup.py camdiag` separates them.
+- Whether the first run's `E_BUSY` was only the GUI holding the camera. If it comes back with nothing else running, `references/test3.txt` Part G lists the candidates (stale process, `usbfs_memory_mb`, USB power or bandwidth, the 2026-05-19 SDK build).
 - Real Pi 5 USB3 throughput and fps at each camera resolution.
 - Qt rendering speed under the Pi's Wayland compositor (labwc/Wayfire).
 - aarch64 wheels for opencv-python-headless (the headless 5.0.0.93 aarch64 wheel exists on PyPI; installed and imports on the Pi 5, see "Verified vs. not verified").

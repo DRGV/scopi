@@ -35,16 +35,31 @@ class _Field:
             lay.addWidget(self.spin)
             self.get = lambda: self.spin.value()
         elif k == "float":
-            self.w = QDoubleSpinBox()
             lo, hi = p.range
-            self.w.setDecimals(p.digits)
-            self.w.setRange(lo, hi)
-            self.w.setSingleStep(10 ** -p.digits if hi - lo < 100 else 1.0)
-            self.w.setValue(float(p.default))
+            self.spin = QDoubleSpinBox()
+            self.spin.setDecimals(p.digits)
+            self.spin.setRange(lo, hi)
+            self.spin.setSingleStep(10 ** -p.digits if hi - lo < 100 else 1.0)
+            self.spin.setValue(float(p.default))
             if p.unit:
-                self.w.setSuffix(f" {p.unit}")
-            self.w.valueChanged.connect(lambda _: on_change())
-            self.get = lambda: self.w.value()
+                self.spin.setSuffix(f" {p.unit}")
+            self.spin.valueChanged.connect(lambda _: on_change())
+            self.get = lambda: self.spin.value()
+            if hi - lo <= 1000:   # a bounded range gets a slider too, handy with the live preview
+                steps = max(min(int(round((hi - lo) * 10 ** p.digits)), 1000), 1)
+                self.slider = QSlider(Qt.Orientation.Horizontal)
+                self.slider.setRange(0, steps)
+                to_pos = lambda v: int(round((v - lo) / (hi - lo) * steps))
+                self.slider.setValue(to_pos(self.spin.value()))
+                self.slider.valueChanged.connect(lambda i: self.spin.setValue(round(lo + (hi - lo) * i / steps, p.digits)))
+                self.spin.valueChanged.connect(lambda v: (self.slider.blockSignals(True), self.slider.setValue(to_pos(v)), self.slider.blockSignals(False)))
+                self.w = QWidget()
+                lay = QHBoxLayout(self.w)
+                lay.setContentsMargins(0, 0, 0, 0)
+                lay.addWidget(self.slider, 1)
+                lay.addWidget(self.spin)
+            else:
+                self.w = self.spin
         elif k == "choice":
             self.w = QComboBox()
             self.w.addItems([str(c) for c in p.choices])

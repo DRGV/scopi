@@ -53,21 +53,28 @@ class _Puller(QObject):
     """Lives in the worker thread: fetches the newest frame and forwards it unless the GUI is behind."""
 
     frame_ready = Signal(object)
+    error = Signal(str)
 
     def __init__(self, backend: CameraBackend):
         super().__init__()
         self.backend = backend
         self.gui_busy = False
         self.dropped = 0
+        self._last_error = ""
 
     @Slot()
     def pull(self):
         try:
             f = self.backend.pull()
-        except Exception:
+        except Exception as e:
+            msg = str(e) or type(e).__name__
+            if msg != self._last_error:   # one report per distinct failure, not one per frame
+                self._last_error = msg
+                self.error.emit(msg)
             return
         if f is None:
             return
+        self._last_error = ""
         if self.gui_busy:
             self.dropped += 1
             return
@@ -153,6 +160,7 @@ class CameraController(QObject):
         self._puller.moveToThread(self._thread)
         self.frame_available.connect(self._puller.pull, Qt.ConnectionType.QueuedConnection)
         self._puller.frame_ready.connect(self._on_frame)
+        self._puller.error.connect(self.error)
         self._thread.start()
         self.state_changed.emit()
 
@@ -504,7 +512,17 @@ class CameraPanel(QWidget):
         self.res_combo.currentIndexChanged.connect(self._res_changed)
         self.bits_combo.currentIndexChanged.connect(self._bits_changed)
         self.auto_exp.toggled.connect(self._auto_exp)
-        self.exp_spin.editingFinished.connect(self._exp)
+        # apply while typing or stepping (after a short pause), not only on Enter or focus loss
+        self._exp_timer = QTimer(self)
+        self._exp_timer.setSingleShot(True)
+        self._exp_timer.setInterval(300)
+        self._exp_timer.timeout.connect(self._exp)
+        self.exp_spin.valueChanged.connect(self._exp_edited)
+        self.exp_spin.editingFinished.connect(self._exp)   # Enter or focus loss applies at once
+        # while auto exposure runs, show the value the camera chose
+        self._auto_timer = QTimer(self)
+        self._auto_timer.setInterval(500)
+        self._auto_timer.timeout.connect(self._follow_auto_exposure)
         self.gain_slider.valueChanged.connect(self._gain)
         self.awb_btn.clicked.connect(lambda: self._call(lambda: self.c.backend.auto_white_balance()))
         self.temp_spin.editingFinished.connect(self._wb)
@@ -592,6 +610,7 @@ class CameraPanel(QWidget):
             self.temp_spin.setValue(t)
             self.tint_spin.setValue(ti)
             self.auto_exp.setChecked(b.get_auto_exposure())
+            self._auto_exposure_ui(self.auto_exp.isChecked())
         except Exception as e:
             self.status.setText(str(e))
         finally:
@@ -611,9 +630,34 @@ class CameraPanel(QWidget):
     def _auto_exp(self, on: bool) -> None:
         if not self._block and self.c.connected:
             self._call(lambda: self.c.backend.set_auto_exposure(on))
-            self.exp_spin.setEnabled(not on)
+            self._auto_exposure_ui(on)
+
+    def _auto_exposure_ui(self, on: bool) -> None:
+        self.exp_spin.setEnabled(not on)
+        if on:
+            self._exp_timer.stop()
+            self._auto_timer.start()
+        else:
+            self._auto_timer.stop()
+
+    def _follow_auto_exposure(self) -> None:
+        if not self.c.connected:
+            self._auto_timer.stop()
+            return
+        try:
+            ms = self.c.backend.get_exposure() / 1000
+        except Exception:
+            return
+        self.exp_spin.blockSignals(True)
+        self.exp_spin.setValue(ms)
+        self.exp_spin.blockSignals(False)
+
+    def _exp_edited(self) -> None:
+        if not self._block and self.c.connected and not self.auto_exp.isChecked():
+            self._exp_timer.start()
 
     def _exp(self) -> None:
+        self._exp_timer.stop()
         if not self._block and self.c.connected:
             self._call(lambda: self.c.backend.set_exposure(int(self.exp_spin.value() * 1000)))
 

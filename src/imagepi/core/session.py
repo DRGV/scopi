@@ -11,6 +11,7 @@ class Session:
     def __init__(self):
         self.manager = Manager()
         self.results = ResultsTable("Results")
+        self.summary = ResultsTable("Summary")   # one row per Analyze Particles run
         self.recorder = Recorder()
 
     @property
