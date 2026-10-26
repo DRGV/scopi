@@ -1,0 +1,197 @@
+ImagePi - Pi 5 test round 3
+===========================
+
+What round 2 (Round2Results.txt) showed
+PASSED on the Pi:
+- install_pi.sh (2 minutes), the venv, the launcher entry, the udev rule, the aarch64 SDK library, "pi_bringup.py check", and the
+  test suite (144 passed).
+- The app starts from the terminal and from the menu, and quits at once. Theme is remembered.
+- Speed: 18 MP pan/zoom is "very smooth" (render test: 35.7 / 31.0 / 23.9 ms median, the target was about 33), CPU about 25% per core
+  while panning, memory about 760 MB for the 18 MP RGB image, throttled=0x0 and 49 C throughout.
+- cells_gray.png gave 80 particles, the same as the Mac. Time-lapse saved 3 files. Gain and bit depth in the simulated camera work.
+- Camera hardware: product id 0547:3018, a 5000M USB 3 link, device node crw-rw-rw-, enumerated as U3CMOS18000KPA.
+
+PROBLEMS found, and what I changed (all on the Mac, none tested on the Pi yet):
+1. Real camera: "pi_bringup.py camera" died on the first pull with
+     ctypes.ArgumentError: argument 2: TypeError: 'bytearray' object cannot be interpreted as ctypes.c_char_p
+   ImagePi gave the SDK wrapper a bytearray and the wrapper only accepts a ctypes buffer. My fake-SDK tests accepted a bytearray, so
+   they never caught it; they now reject it like the real wrapper does. The same bug explains round 1's "No live image" in the app:
+   the start worked, every pull failed, and the app swallowed the error. Pull errors are now shown in the live view and the status bar.
+   (Round 1's E_BUSY was most likely the app still holding the camera while the script ran. Not confirmed, so Part G keeps the checks.)
+2. Outlines after Analyze Particles were not visible: they were yellow and 1 px wide on white objects. Now red and 2 px wide.
+3. "Add summary row" did nothing visible. The summary now appears as a small "Particle summary" table under the results.
+4. Image > Type > 8-bit, then Undo, left the 0..255 display range on the 16-bit data, so it showed as a white page with two black
+   dots. Undo and Redo now restore the range when the pixel type changes.
+5. Gaussian Blur had no slider: only whole-number settings got one. Settings with a bounded range (sigma, circularity) now have one.
+6. Exposure only applied when you pressed Enter. It now applies about 0.3 s after you stop typing or stepping.
+7. Auto exposure did nothing in the simulated camera, and the Exposure box never showed what a real camera chooses. The simulator now
+   steers to mid-gray, the box is greyed out while auto exposure is on, and it follows the camera's value.
+8. The Results table showed 10000 as "1e+04". It now shows 10000, 81369, 1961.25.
+9. Speed: Gaussian Blur and the gray display path now use OpenCV (same numbers as SciPy to float precision). On the Mac, 18 MP gray
+   Gaussian went from 449 ms to 57 ms, RGB from about 1.4 s to 194 ms, and the fit repaint to about 6 ms. The Pi should gain similarly.
+10. The Qt "QWaylandTextInputv3::disableSurface ... but 0x0 is focused" lines are harmless. The app now silences that one message.
+Two expectations in test2.txt were wrong, and I corrected that file: the simulated camera cannot reach 20 fps (it needs 42 ms per frame
+on the Mac, about 70 ms on the Pi, so 14 fps is a pass), and a 16-bit colour snap is a plain TIFF, not an ImageJ TIFF, so
+"imagej_metadata" is None for it by design.
+
+Rules (same as before)
+- Normal user ("sch"), bash, venv active (cd ~/Code/imagepi && source .venv/bin/activate). sudo only where a step says so.
+- Stop at the first failure and send me the output. "Send me" = paste the text.
+- Close the app before running any camera script, and close any script before starting the app. Only one program can hold the camera.
+
+
+PART A - Get the new code onto the Pi
+-------------------------------------
+
+A1. On the Mac:
+      cd ~/Code/Python/imagepy
+      git status
+      git add readme.md scripts src tests
+      git commit -m "Fix camera pull buffer, outlines, summary table, undo range; exposure and slider UI; OpenCV Gaussian and display LUT"
+      git push
+A2. On the Pi:
+      cd ~/Code/imagepi
+      git pull
+      QT_QPA_PLATFORM=offscreen python -m pytest -q 2>&1 | tail -5
+    Expect "159 passed". The install is editable, no reinstall is needed. Send me the last lines.
+
+
+PART B - The real camera from the command line
+----------------------------------------------
+
+B1. Make sure nothing holds the camera, then replug it:
+      pgrep -af "imagepi|pi_bringup|toupcam"
+    Expect no output (the pgrep line itself does not count). If lines are listed, send them, then stop those
+    processes with: pkill -f "imagepi|pi_bringup"
+    Then unplug the camera, wait 5 seconds, plug it into a blue USB 3 port, wait 5 seconds.
+    Remove the lens cap and turn the lamp on.
+B2. The measurement that failed in round 2 (about 20 seconds):
+      python scripts/pi_bringup.py camera --secs 5 2>&1 | tee ~/camera_bringup.log
+    Expect the camera name, then one line per resolution, for example "1228x922: 31.0 fps, 105.0 MB/s decoded RGB24".
+    Vendor spec over USB 3: about 5.6 fps at 4912x3684, 18.1 at 2456x1842, 32.2 at 1228x922. Slower is worth reporting.
+    If a line says FAILED or shows "errors: [...]", send it. If the text contains E_BUSY, go to Part G.
+B3. The same test through the vendor SDK only, with the USB details (about 15 seconds):
+      python scripts/pi_bringup.py camdiag --secs 3 2>&1 | tee ~/camdiag.log
+    Expect the SDK version, the camera flags, then one line per resolution like
+    "[2] 1228x922: start ok, 95 frames pulled (31.7 fps), events {'IMAGE': 96}, pull errors none".
+    Send me ~/camera_bringup.log and ~/camdiag.log.
+    If B2 works and B3 shows "pull errors", send me both.
+
+
+PART C - The real camera in the app
+-----------------------------------
+
+Do Part B first. Start the app with: python -m imagepi 2>&1 | tee ~/gui.log
+C1. Camera > Camera Panel (Ctrl+Shift+C), click Refresh. Select "U3CMOS18000KPA [touptek]", Connect, set Resolution 1228 x 922,
+    Start live view. If it fails, the live view now says why under "No live image" (also in the status bar): send me that text.
+    If it works, read the fps in the corner and judge smoothness, tearing and lag.
+C2. Colours and orientation: put a RED object and printed text under the lens. Red must look red (blue means the byte order is
+    wrong). Text must read normally (tell me if it is mirrored or upside down).
+C3. Exposure: type a new value in the Exposure box (for example 30) and do not press Enter. The picture should change within about
+    half a second. Move the Gain slider. Tick Auto exposure: the Exposure box greys out, and its number follows the camera
+    while you cover and uncover the lens or turn the lamp up and down. Untick it. Click Auto white balance on a blank white area.
+C4. Switch Resolution to 2456 x 1842 and then 4912 x 3684 and read the fps at each. Tell me if any of them fails or freezes.
+C5. Hardware crop: with live view running, drag a rectangle on the live picture. The Crop button changes to
+    "Crop W x H (click: full frame)" and the fps should rise. Click it to return to full frame.
+C6. Snap at 8-bit. The full-resolution picture opens in a new tab: time it from the click. Save it as TIFF (File > Save As,
+    ~/imagepi-test/snap8.tif), then in a terminal:
+      python -c "import tifffile,sys; t=tifffile.TiffFile(sys.argv[1]); print('imagej:', t.is_imagej); print((t.imagej_metadata or {}).get('Info')); print(t.pages[0].description[:300])" ~/imagepi-test/snap8.tif
+    Expect imagej: True and an Info text with the camera name, exposure, gain, bits and calibration.
+C7. Set Bit depth to 16-bit, Start live view, Snap, save as ~/imagepi-test/snap16.tif and run the same command on it.
+    Expect "imagej: False", then None, then the JSON text (camera, exposure, gain, bits=16). The image must look normal
+    (not black, not white). If the camera has no 16-bit mode you get a clear message instead: send it.
+C8. Unplug the USB cable WHILE live view runs. Expect a message in the status bar or the panel and the app still running.
+    Plug it back in, Camera > Refresh Devices, connect again, Start live view.
+C9. Quit the app. Expect the prompt back within a few seconds.
+    Send me: the fps at each resolution, the snap time, anything wrong with colours or orientation, what auto exposure did, what
+    happened in C8, and ~/gui.log if anything went wrong.
+
+
+PART D - Re-test of the fixes (no camera needed)
+------------------------------------------------
+
+D1. Outlines and the summary table. python -m imagepi ~/imagepi-test/known_shapes.png
+    Image > Adjust > Auto Threshold (Otsu, Objects: bright), then Analyze > Analyze Particles with the defaults.
+    Expect: red 2 px outlines on all 9 shapes. In the Results panel: 9 rows with Area 10000 (six times) and 7845 (three times),
+    shown as whole numbers. Under it a "Particle summary" row: Count 9, Total Area 83535, Average Size 9281.67, %Area 17.4031,
+    Density 1.875e-05, Unit pixel.
+    Analyze > Clear Results empties both tables. Run Analyze Particles with "Exclude on edges" ticked:
+    Count 8, Total Area 73535, %Area 15.3198. Clear, Image > Set Scale (Unit um, Pixel size 0.5), Analyze Particles again:
+    Area 2500 and 1961.25, summary Total Area 20883.75, %Area 17.4031, Density 7.5e-05, Unit um.
+    Send me: whether the outlines are easy to see, and any number that differs.
+D2. Filters on cells_gray.png (File > Open, Ctrl+O). Process > Filters > Gaussian Blur: a slider now sits next to the Sigma box.
+    Tick Preview and drag the slider: the picture should follow within about a second and the window stay responsive. OK.
+    Image > Adjust > Auto Threshold (Otsu, dark), Analyze Particles: expect Count 80, Total Area 81369, %Area 7.19 in the summary.
+D3. Undo across a type change. Open ~/imagepi-test/cells_16bit.tif. Image > Type > 8-bit, then Edit > Undo (Ctrl+Z).
+    Expect the 16-bit image back looking like it did at the start, with the Brightness / Contrast Min and Max matching it
+    (round 2 showed a white page with two black dots). Then Edit > Redo (Ctrl+Shift+Z): the 8-bit image again, looking normal.
+D4. The 18 MP image, the two steps round 2 skipped. Open ~/imagepi-test/cells_18mp_rgb.tif.
+    Process > Filters > Gaussian Blur, sigma 2, OK: time it. Round 2's benchmark said 2.0 s for this on the Pi. I expect well under 1 s (measured only on the Mac so far).
+    File > Save As, TIFF, ~/imagepi-test/out.tif. Then File > Close and reopen it. Check: ls -l ~/imagepi-test/out.tif
+    (about 54 MB) and that the reopened image looks right. Send me the Gaussian time and the file size.
+D5. The simulated camera. Camera Panel, select [simulated], Connect, Start live view.
+    Type a different Exposure and wait: the picture changes without Enter. Tick Auto exposure: the box greys out and its number
+    drifts to a steady value, the picture settles at mid-gray (try it after setting Exposure to a very high value first). Untick.
+D6. The terminal. While the app runs from "python -m imagepi 2>&1 | tee ~/gui.log": no more
+    "qt.qpa.wayland.textinput ... Trying to disable" lines. Send me what appears (or "none").
+D7. Speed again. Close the app, nothing else running:
+      python scripts/pi_bringup.py render 2>&1 | tee ~/render2.log
+      python scripts/benchmark.py 2>&1 | tee ~/bench_gray8b.log
+      python scripts/benchmark.py --rgb 2>&1 | tee ~/bench_rgb8b.log
+      vcgencmd get_throttled
+    Round 2 baseline: repaint at fit 35.7 ms, pan 31.0, zoom sweep 23.9; gray-8 fit view 54 ms, Gaussian 658 ms; RGB-8 Gaussian 2040 ms.
+    Send me the files' contents and the throttle flag.
+
+
+PART E - Calibration (only with the 0.01 mm slide, after Part C works)
+----------------------------------------------------------------------
+
+E1. Focus on the scale, Snap, draw a Line tool line along 1 mm of the scale, Image > Set Scale..., Known distance 1, Unit mm, OK.
+    Save it as an objective preset (name it e.g. 4x). Then measure another 0.5 mm span with the Line tool and press Ctrl+M.
+    Send me the pixel size it computed and the measured length.
+
+
+PART F - The camera works on the command line but not in the app
+----------------------------------------------------------------
+
+F1. Run the app from the terminal (python -m imagepi 2>&1 | tee ~/gui.log), Connect, Start live view, and send me the text
+    under "No live image", the status line and ~/gui.log.
+F2. Quit the app, then rerun B2 at once and tell me whether it still works. If it says E_BUSY now, the app left the camera
+    open after quitting, which is a bug I need to fix.
+
+
+PART G - Only if E_BUSY (0x800700aa) or another start error comes back with nothing else running
+------------------------------------------------------------------------------------------------
+
+Stop at the first step that makes the camera start, and tell me which one it was.
+G1. Another process holds it: pgrep -af "imagepi|pi_bringup|toupcam" (nothing but the pgrep line), then replug the camera.
+G2. USB buffer limit. cat /sys/module/usbcore/parameters/usbfs_memory_mb and send me the number. If the small resolution works and
+    4912x3684 does not, raise it until the next reboot and re-run camdiag:
+      echo 1000 | sudo tee /sys/module/usbcore/parameters/usbfs_memory_mb
+      python scripts/pi_bringup.py camdiag --secs 3
+    If that fixes it I will make it permanent (do not yet).
+G3. Power, link and kernel messages, right after a failed run:
+      vcgencmd get_throttled
+      sudo dmesg | tail -60
+      lsusb -t
+    Expect 0x0, no usb/xhci errors, and the camera on a 5000M link. Then try a lower USB bandwidth:
+      python scripts/pi_bringup.py camdiag --bandwidth 80 --secs 3
+      python scripts/pi_bringup.py camdiag --bandwidth 50 --secs 3
+G4. Other blue port, then (if you can) sudo reboot, plug the camera in, run camdiag with nothing else started.
+G5. The newer SDK (20260818), only if G1 to G4 changed nothing. On the Mac:
+      cd ~/Code/Python/imagepy/references/omax/toupcamsdk.20260818
+      zip -r ~/toupcam-20260818-min.zip python inc linux/arm64 linux/udev
+      scp ~/toupcam-20260818-min.zip sch@<the Pi's address>:~/
+    On the Pi:
+      python scripts/install_toupcam.py ~/toupcam-20260818-min.zip
+      python scripts/pi_bringup.py camdiag --secs 3 2>&1 | tee ~/camdiag_new_sdk.log
+    To go back: python scripts/install_toupcam.py ~/Downloads/toupcamsdk.20260519.zip
+
+
+What to send back
+-----------------
+- Part A: the pytest tail.
+- Part B: ~/camera_bringup.log and ~/camdiag.log.
+- Part C: the numbers and observations listed at its end, and ~/gui.log if anything failed.
+- Part D: the numbers asked for in D1, D2, D4 and D7, what you saw in D3, D5 and D6.
+- Part E when done. Part F and G only if you needed them (say which G step fixed it).

@@ -3,8 +3,9 @@
 
     python scripts/pi_bringup.py check            # wheels import, glibc, Qt platform plugins
     python scripts/pi_bringup.py render           # time 18 MP pan/zoom through the real canvas (needs a display)
-    python scripts/pi_bringup.py camera [--secs 5] # lsusb, enumerate, fps + USB throughput per resolution
-    python scripts/pi_bringup.py camdiag [--res N] [--bandwidth %] [--secs 3]
+    python scripts/pi_bringup.py camera [--secs 5] [--exposure-ms 10 | --exposure-ms 0 --auto-limit-ms 100]
+                                                   # lsusb, enumerate, fps + USB throughput per resolution (fixed short exposure by default)
+    python scripts/pi_bringup.py camdiag [--res N] [--bandwidth %] [--exposure-ms MS] [--secs 3]
                                                    # the vendor SDK only (no ImagePi camera code): USB state, flags, start/pull per resolution
 
 Run `render` under Wayland (QT_QPA_PLATFORM=wayland) on the Pi; use QT_QPA_PLATFORM=offscreen elsewhere.
@@ -102,7 +103,18 @@ def cmd_camera(a) -> int:
     cam = TouptekCamera()
     cam.open(info.id)
     failed = 0
+    exposure_ms = getattr(a, "exposure_ms", 0.0)
+    auto_limit_ms = getattr(a, "auto_limit_ms", 0.0)
     try:
+        if exposure_ms:
+            # The frame rate can never beat 1 / exposure time, and the camera starts in auto exposure (up to 350 ms): measure
+            # the USB link with a short fixed exposure, not the exposure the auto mode happened to choose.
+            cam.set_auto_exposure(False)
+            cam.set_exposure(int(exposure_ms * 1000))
+        elif auto_limit_ms:
+            cam.set_auto_exposure_limit(int(auto_limit_ms * 1000))
+        print(f"exposure: {'fixed ' + format(exposure_ms, 'g') + ' ms' if exposure_ms else 'camera auto exposure'}"
+              + (f", auto limit {auto_limit_ms:g} ms" if auto_limit_ms and not exposure_ms else ""))
         for idx, (w, h) in enumerate(cam.resolutions):
             try:
                 cam.set_resolution(idx)
@@ -124,10 +136,14 @@ def cmd_camera(a) -> int:
                     frames += 1
                 else:
                     time.sleep(0.001)
-            cam.stop()
             dt = time.time() - t0
+            try:
+                chosen = f", exposure {cam.get_exposure() / 1000:.1f} ms ({'auto' if cam.get_auto_exposure() else 'fixed'})"
+            except Exception:
+                chosen = ""
+            cam.stop()
             mb = frames * w * h * 3 / 1e6
-            print(f"{w}x{h}: {frames / dt:5.1f} fps, {mb / dt:6.1f} MB/s decoded RGB24" + (f"   errors: {sorted(errors)}" if errors else ""))
+            print(f"{w}x{h}: {frames / dt:5.1f} fps, {mb / dt:6.1f} MB/s decoded RGB24{chosen}" + (f"   errors: {sorted(errors)}" if errors else ""))
             if errors and not frames:
                 failed += 1
     finally:
@@ -189,6 +205,14 @@ def cmd_camdiag(a) -> int:
                 print("bandwidth set to", a.bandwidth, "%")
             except (tc.HRESULTException, AttributeError) as ex:
                 print("bandwidth option failed:", _hr_text(ex) if hasattr(ex, "hr") else ex)
+        exposure_ms = getattr(a, "exposure_ms", 0.0)
+        if exposure_ms:   # a short fixed exposure, so the frame rate shows the USB link and not the auto exposure time
+            try:
+                cam.put_AutoExpoEnable(0)
+                cam.put_ExpoTime(int(exposure_ms * 1000))
+                print("auto exposure off, exposure", exposure_ms, "ms")
+            except tc.HRESULTException as ex:
+                print("exposure option failed:", _hr_text(ex))
         order = [a.res] if a.res is not None else list(range(len(m.res) - 1, -1, -1))   # smallest first
         for idx in order:
             w, h = m.res[idx].width, m.res[idx].height
@@ -224,9 +248,13 @@ def cmd_camdiag(a) -> int:
                 except Exception as ex:
                     pull_err.add(f"{type(ex).__name__}: {ex}")
                     break
-            cam.Stop()
             dt = time.time() - t0
-            print(f"[{idx}] {w}x{h}: start ok, {frames} frames pulled ({frames / dt:.1f} fps), events {seen or 'none'}, pull errors {sorted(pull_err) or 'none'}")
+            try:
+                chosen = f", exposure {cam.get_ExpoTime() / 1000:.1f} ms (auto {'on' if cam.get_AutoExpoEnable() else 'off'})"
+            except Exception:
+                chosen = ""
+            cam.Stop()
+            print(f"[{idx}] {w}x{h}: start ok, {frames} frames pulled ({frames / dt:.1f} fps){chosen}, events {seen or 'none'}, pull errors {sorted(pull_err) or 'none'}")
             if not frames:
                 failed += 1
     finally:
@@ -241,11 +269,16 @@ def main() -> int:
     sub.add_parser("render").set_defaults(fn=cmd_render)
     c = sub.add_parser("camera")
     c.add_argument("--secs", type=float, default=5.0)
+    c.add_argument("--exposure-ms", type=float, default=10.0,
+                   help="fixed exposure in ms, auto exposure off (default 10: measures the USB link). 0 = leave the camera in auto exposure")
+    c.add_argument("--auto-limit-ms", type=float, default=0.0,
+                   help="with --exposure-ms 0: longest exposure auto exposure may use, in ms (default: the camera's 350)")
     c.set_defaults(fn=cmd_camera)
     d = sub.add_parser("camdiag")
     d.add_argument("--secs", type=float, default=3.0)
     d.add_argument("--res", type=int, default=None, help="only this resolution index (default: all, smallest first)")
     d.add_argument("--bandwidth", type=int, default=0, help="set the camera's USB bandwidth option to this percent (1-100) first")
+    d.add_argument("--exposure-ms", type=float, default=0.0, help="auto exposure off and this fixed exposure (default 0: leave the camera as it is)")
     d.set_defaults(fn=cmd_camdiag)
     a = ap.parse_args()
     return a.fn(a)

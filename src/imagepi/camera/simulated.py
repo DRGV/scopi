@@ -51,6 +51,7 @@ class SimulatedCamera(CameraBackend):
         self._exposure = 10000
         self._gain = 100
         self._auto_exp = False
+        self._auto_limit = 350_000   # like the real camera's default longest auto exposure (us)
         self._wb = (6503, 1000)
         self._thread: threading.Thread | None = None
         self._stop_evt = threading.Event()
@@ -125,6 +126,11 @@ class SimulatedCamera(CameraBackend):
     def get_auto_exposure(self) -> bool:
         return self._auto_exp
 
+    supports_auto_exposure_limit = True
+
+    def set_auto_exposure_limit(self, microseconds: int) -> None:
+        self._auto_limit = int(np.clip(microseconds, 100, 1_000_000))
+
     def set_white_balance(self, temp: int, tint: int) -> None:
         self._wb = (temp, tint)
 
@@ -146,17 +152,17 @@ class SimulatedCamera(CameraBackend):
                 k = _SYNTH_RES[res_index][0] / _SYNTH_RES[self.resolution_index][0]   # ROI is in preview-pixel units
                 x, y, rw, rh = (int(v * k) for v in (x, y, rw, rh))
             f = f[y:y + rh, x:x + rw]
-        return f
+        return np.ascontiguousarray(self._oriented(f))
 
     def _auto_adjust(self, frame: np.ndarray) -> None:
         """Steer the exposure so the mean gray level approaches the target (a real camera does this in firmware)."""
         mean = float(frame[::8, ::8].mean())
         ratio = AUTO_EXPOSURE_TARGET / max(mean, 1.0)
-        self._exposure = int(np.clip(self._exposure * ratio ** 0.5, 100, 1_000_000))
+        self._exposure = int(np.clip(self._exposure * ratio ** 0.5, 100, self._auto_limit))
 
     def set_roi(self, x: int, y: int, w: int, h: int) -> None:
         full_w, full_h = self.resolutions[self.resolution_index]
-        self._roi = None if (x, y, w, h) == (0, 0, full_w, full_h) else (x, y, w, h)
+        self._roi = None if (x, y, w, h) == (0, 0, full_w, full_h) else self._roi_to_sensor(x, y, w, h, full_w, full_h)
 
     @property
     def supports_16bit(self) -> bool:

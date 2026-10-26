@@ -247,6 +247,17 @@ class TouptekCamera(CameraBackend):
     def get_auto_exposure(self) -> bool:
         return bool(self._need().get_AutoExpoEnable())
 
+    supports_auto_exposure_limit = True
+
+    def set_auto_exposure_limit(self, microseconds: int) -> None:
+        """The camera starts with auto exposure on and a 350 ms limit: a dim slide then gives 2.9 fps and a laggy picture."""
+        cam = self._need()
+        try:
+            _longest, max_gain = cam.get_MaxAutoExpoTimeAGain()   # keep the gain limit as it is
+            cam.put_MaxAutoExpoTimeAGain(int(microseconds), int(max_gain))
+        except self._tc.HRESULTException as ex:
+            raise CameraError(f"cannot limit auto exposure: {_hr_text(ex)}") from ex
+
     def set_white_balance(self, temp: int, tint: int) -> None:
         self._need().put_TempTint(int(temp), int(tint))
 
@@ -257,9 +268,11 @@ class TouptekCamera(CameraBackend):
         self._need().AwbOnce()
 
     def set_roi(self, x: int, y: int, w: int, h: int) -> None:
-        """Hardware ROI crop; offsets/sizes are rounded down to even numbers as the SDK requires."""
+        """Hardware ROI crop. The rectangle is in displayed full-frame pixels (after the flips); offsets/sizes are
+        rounded down to even numbers as the SDK requires. The SDK wants it in unflipped sensor pixels."""
         e = lambda v: int(v) & ~1
-        self._need().put_Roi(e(x), e(y), e(w), e(h))
+        full_w, full_h = self.resolutions[self._res_index]
+        self._need().put_Roi(*self._roi_to_sensor(e(x), e(y), e(w), e(h), full_w, full_h))
 
     @property
     def supports_16bit(self) -> bool:
@@ -332,9 +345,8 @@ class TouptekCamera(CameraBackend):
         return self._running
 
     def _to_array(self, buf, w: int, h: int, bits: int) -> np.ndarray:
-        if bits == 16:
-            return np.frombuffer(buf, np.uint16, count=w * h * 3).reshape(h, w, 3).copy()
-        return np.frombuffer(buf, np.uint8, count=w * h * 3).reshape(h, w, 3).copy()
+        dtype = np.uint16 if bits == 16 else np.uint8
+        return self._oriented(np.frombuffer(buf, dtype, count=w * h * 3).reshape(h, w, 3)).copy()   # one copy, C-ordered
 
     def pull(self):
         if not self._running or not self._frame_ready.is_set():

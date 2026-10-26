@@ -93,6 +93,36 @@ class CameraBackend(ABC):
     def get_auto_exposure(self) -> bool:
         return False
 
+    # Auto exposure may lengthen the exposure until the live view crawls (the ToupTek default limit is 350 ms = 2.9 fps).
+    supports_auto_exposure_limit = False
+
+    def set_auto_exposure_limit(self, microseconds: int) -> None:
+        """Longest exposure auto exposure may choose (it raises the gain instead). No-op where unsupported."""
+
+    # ---- orientation ----
+    # A microscope's optics often mirror or invert the picture, so the user can flip it. Applied to previews and stills.
+    _flip: tuple[bool, bool] = (False, False)   # (horizontal, vertical)
+
+    def set_flip(self, horizontal: bool, vertical: bool) -> None:
+        self._flip = (bool(horizontal), bool(vertical))
+
+    def get_flip(self) -> tuple[bool, bool]:
+        return self._flip
+
+    def _oriented(self, arr: np.ndarray) -> np.ndarray:
+        """``arr`` mirrored as set by ``set_flip`` (a view; callers copy)."""
+        h, v = self._flip
+        if h:
+            arr = arr[:, ::-1]
+        if v:
+            arr = arr[::-1]
+        return arr
+
+    def _roi_to_sensor(self, x: int, y: int, w: int, h: int, full_w: int, full_h: int) -> tuple[int, int, int, int]:
+        """A rectangle in displayed (flipped) full-frame pixels -> the same region in unflipped sensor pixels."""
+        fh, fv = self._flip
+        return (full_w - x - w if fh else x, full_h - y - h if fv else y, w, h)
+
     def set_white_balance(self, temp: int, tint: int) -> None:
         pass
 
@@ -135,7 +165,10 @@ class CameraBackend(ABC):
     def metadata(self) -> dict:
         """Acquisition metadata to store with saved images."""
         w, h = self.resolutions[self.resolution_index]
-        return {
+        md = {
             "camera": self.name, "exposure_us": self.get_exposure(), "gain_percent": self.get_gain(),
             "width": w, "height": h, "white_balance": list(self.get_white_balance()),
         }
+        if any(self._flip):
+            md["flip"] = {"horizontal": self._flip[0], "vertical": self._flip[1]}
+        return md

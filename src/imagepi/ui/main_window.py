@@ -97,7 +97,7 @@ class MainWindow(QMainWindow):
         self.display_panel = DisplayPanel()
         self.results_panel = ResultsPanel(self.session.results, self.session.summary)
         self.roi_panel = RoiManagerPanel()
-        self.camera_panel = CameraPanel(self.camera)
+        self.camera_panel = CameraPanel(self.camera, settings=self.settings)
         self.display_dock = self._dock("Brightness / Contrast", self.display_panel, Qt.DockWidgetArea.RightDockWidgetArea)
         self.roi_dock = self._dock("ROI Manager", self.roi_panel, Qt.DockWidgetArea.RightDockWidgetArea)
         self.results_dock = self._dock("Results", self.results_panel, Qt.DockWidgetArea.BottomDockWidgetArea)

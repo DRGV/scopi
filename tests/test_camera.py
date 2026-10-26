@@ -117,13 +117,58 @@ def test_simulated_auto_exposure_steers_to_the_target():
     assert cam.get_exposure() == before         # manual exposure is left alone
 
 
+def test_simulated_auto_exposure_respects_the_limit():
+    cam = SimulatedCamera()
+    cam.open()
+    cam.set_resolution(2)
+    cam.set_exposure(100_000)
+    cam.set_auto_exposure_limit(3000)
+    cam.set_auto_exposure(True)
+    for _ in range(30):
+        cam._make()
+    assert cam.supports_auto_exposure_limit and cam.get_exposure() <= 3000
+
+
+def _replay_source(tmp_path):
+    import cv2
+
+    img = np.random.default_rng(3).integers(0, 255, (12, 16, 3), dtype=np.uint8)
+    cv2.imwrite(str(tmp_path / "a.png"), img[..., ::-1])
+    return str(tmp_path)
+
+
+def test_simulated_flips_mirror_previews_and_stills(tmp_path):
+    cam = SimulatedCamera(source=_replay_source(tmp_path))
+    cam.open()
+    base = cam._make()
+    assert cam.get_flip() == (False, False) and "flip" not in cam.metadata()
+    for flip, expect in (((True, False), base[:, ::-1]), ((False, True), base[::-1]), ((True, True), base[::-1, ::-1])):
+        cam.set_flip(*flip)
+        got = cam._make()
+        assert np.array_equal(got, expect) and got.flags.c_contiguous
+        assert np.array_equal(cam.snap(), expect)
+    assert cam.metadata()["flip"] == {"horizontal": True, "vertical": True}
+
+
+def test_simulated_crop_is_chosen_on_the_displayed_orientation(tmp_path):
+    cam = SimulatedCamera(source=_replay_source(tmp_path))
+    cam.open()
+    base = cam._make()
+    cam.set_flip(True, True)
+    shown = cam._make()
+    cam.set_roi(2, 1, 5, 4)                       # a rectangle drawn on the flipped picture
+    assert np.array_equal(cam._make(), shown[1:5, 2:7])
+    cam.set_roi(0, 0, 16, 12)                     # the full frame again
+    assert np.array_equal(cam._make(), shown) and np.array_equal(shown, base[::-1, ::-1])
+
+
 # ------------------------------------------------------------------ fake ToupTek SDK
 class FakeHR(Exception):
     def __init__(self, hr):
         self.hr = hr
 
 
-def make_fake_sdk(access_denied=False, busy_start=False):
+def make_fake_sdk(access_denied=False, busy_start=False, deep_bits=True):
     m = types.SimpleNamespace()
     m.TOUPCAM_EVENT_IMAGE, m.TOUPCAM_EVENT_STILLIMAGE, m.TOUPCAM_EVENT_DISCONNECTED = 4, 5, 0x81
     m.TOUPCAM_EVENT_ERROR, m.TOUPCAM_EVENT_NOFRAMETIMEOUT, m.TOUPCAM_EVENT_NOPACKETTIMEOUT = 0x80, 0x82, 0x85
@@ -144,7 +189,7 @@ def make_fake_sdk(access_denied=False, busy_start=False):
 
     class Model:
         name = "FakeCam"
-        flag = 0x8000
+        flag = 0x8000 if deep_bits else 0x80000000   # RAW16 / RAW8 only
         xpixsz = ypixsz = 1.4
         res = [Res(64, 48), Res(32, 24)]
 
@@ -157,6 +202,7 @@ def make_fake_sdk(access_denied=False, busy_start=False):
             self.cb = None
             self.running = False
             self.expo, self.gain, self.opts = 10000, 100, {}
+            self.auto, self.max_auto = 1, (350000, 300)   # the real camera starts in auto exposure, limit 350 ms
             self.pulled = []
             self.stopped_from_cb = False
 
@@ -170,8 +216,10 @@ def make_fake_sdk(access_denied=False, busy_start=False):
         def get_ExpoAGain(self): return self.gain
         def put_ExpoAGain(self, v): self.gain = v
         def get_ExpoAGainRange(self): return (100, 500, 100)
-        def get_AutoExpoEnable(self): return 0
-        def put_AutoExpoEnable(self, v): pass
+        def get_AutoExpoEnable(self): return self.auto
+        def put_AutoExpoEnable(self, v): self.auto = v
+        def get_MaxAutoExpoTimeAGain(self): return self.max_auto
+        def put_MaxAutoExpoTimeAGain(self, t, g): self.max_auto = (t, g)
         def put_TempTint(self, t, ti): self.tt = (t, ti)
         def get_TempTint(self): return getattr(self, "tt", (6503, 1000))
         def AwbOnce(self): self.awb = True
@@ -366,8 +414,32 @@ def test_bringup_camdiag_pulls_frames(monkeypatch, capsys):
     bringup = _load_bringup()
     assert bringup.cmd_camdiag(types.SimpleNamespace(secs=0.1, res=1, bandwidth=0)) == 0
     out = capsys.readouterr().out
-    assert "[1] 32x24: start ok" in out and "pull errors none" in out
+    assert "[1] 32x24: start ok" in out and "pull errors none" in out and "exposure 10.0 ms (auto on)" in out
     assert sdk.cams[0].closed
+
+
+def test_bringup_camdiag_can_fix_the_exposure(monkeypatch, capsys):
+    sdk = make_fake_sdk()
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    assert _load_bringup().cmd_camdiag(types.SimpleNamespace(secs=0.05, res=1, bandwidth=0, exposure_ms=20.0)) == 0
+    assert "exposure 20.0 ms (auto off)" in capsys.readouterr().out
+    assert sdk.cams[0].auto == 0 and sdk.cams[0].expo == 20000
+
+
+def test_bringup_camera_measures_with_a_fixed_exposure_or_a_limited_auto_exposure(monkeypatch, capsys):
+    """The frame rate cannot beat 1/exposure: a link measurement must not run at the camera's own 350 ms auto exposure."""
+    sdk = make_fake_sdk()
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    bringup = _load_bringup()
+    assert bringup.cmd_camera(types.SimpleNamespace(secs=0.05, exposure_ms=10.0, auto_limit_ms=0.0)) == 0
+    out = capsys.readouterr().out
+    assert "exposure: fixed 10 ms" in out and "exposure 10.0 ms (fixed)" in out
+    assert sdk.cams[0].auto == 0 and sdk.cams[0].expo == 10000
+
+    assert bringup.cmd_camera(types.SimpleNamespace(secs=0.05, exposure_ms=0.0, auto_limit_ms=100.0)) == 0
+    out = capsys.readouterr().out
+    assert "camera auto exposure, auto limit 100 ms" in out and "(auto)" in out
+    assert sdk.cams[1].auto == 1 and sdk.cams[1].max_auto == (100_000, 300)
 
 
 def test_touptek_pull_and_snap(fake_sdk):
@@ -394,6 +466,42 @@ def test_touptek_pull_and_snap(fake_sdk):
     md = cam.metadata()
     assert md["bits"] == 16 and md["model"] == "FakeCam" and md["width"] == 32   # preview size
     cam.close()
+
+
+def test_touptek_flips_frames_and_maps_the_hardware_crop(fake_sdk):
+    cam = touptek.TouptekCamera()
+    cam.open("fake-id")
+    cam.start(lambda: None)
+    c = fake_sdk.cams[0]
+
+    def frame():
+        c.emit(fake_sdk.TOUPCAM_EVENT_IMAGE)
+        return cam.pull()
+
+    base = frame()
+    cam.set_flip(True, True)
+    got = frame()
+    assert np.array_equal(got, base[::-1, ::-1]) and got.flags.c_contiguous
+    assert np.array_equal(cam.snap(), base[::-1, ::-1])           # stills follow the preview's orientation
+    cam.set_roi(11, 7, 21, 13)                                    # odd numbers are rounded down to even first
+    assert c.roi == (64 - 10 - 20, 48 - 6 - 12, 20, 12)           # the SDK wants unflipped sensor pixels
+    cam.set_flip(False, False)
+    cam.set_roi(11, 7, 21, 13)
+    assert c.roi == (10, 6, 20, 12)
+
+
+def test_touptek_auto_exposure_limit_keeps_the_gain_limit(fake_sdk):
+    cam = touptek.TouptekCamera()
+    cam.open("fake-id")
+    cam.set_auto_exposure_limit(100_000)
+    assert fake_sdk.cams[0].max_auto == (100_000, 300) and cam.supports_auto_exposure_limit
+
+    def refuse(*_a):
+        raise FakeHR(0x80004001)
+
+    fake_sdk.cams[0].put_MaxAutoExpoTimeAGain = refuse
+    with pytest.raises(CameraError, match=r"cannot limit auto exposure: E_NOTIMPL"):
+        cam.set_auto_exposure_limit(50_000)
 
 
 def test_touptek_events_dispatch(fake_sdk):
@@ -615,3 +723,131 @@ def test_install_script_handles_folder_and_zip(tmp_path):
     out2 = tmp_path / "out2"
     subprocess.run([sys.executable, script, str(z), "--dest", str(out2)], check=True, capture_output=True)
     assert (out2 / "python" / "toupcam.py").exists()
+
+
+# ------------------------------------------------------------------ OpenCV (V4L2) enumeration
+def test_v4l2_probes_only_existing_video_nodes_on_linux(monkeypatch):
+    from imagepi.camera import v4l2
+
+    monkeypatch.setattr(v4l2.sys, "platform", "linux")
+    monkeypatch.setattr(v4l2.glob, "glob", lambda pat: ["/dev/video7", "/dev/video0", "/dev/video2", "/dev/video-extra"])
+    assert v4l2.V4L2Camera._candidates() == [0, 2, 7]
+    monkeypatch.setattr(v4l2.glob, "glob", lambda pat: [])
+    assert v4l2.V4L2Camera._candidates() == []
+    assert v4l2.V4L2Camera.enumerate() == []             # nothing to probe, so OpenCV is not even loaded for it
+
+
+def test_v4l2_enumerate_is_quiet_and_restores_the_log_level(monkeypatch):
+    import cv2
+    from imagepi.camera import v4l2
+
+    seen = []
+
+    class Cap:
+        def __init__(self, i):
+            seen.append((i, cv2.utils.logging.getLogLevel()))
+
+        def isOpened(self): return True
+        def release(self): pass
+
+    before = cv2.utils.logging.getLogLevel()
+    monkeypatch.setattr(v4l2.V4L2Camera, "_candidates", classmethod(lambda cls: [3]))
+    monkeypatch.setattr(cv2, "VideoCapture", Cap)
+    infos = v4l2.V4L2Camera.enumerate()
+    assert [i.id for i in infos] == ["3"]
+    assert seen == [(3, cv2.utils.logging.LOG_LEVEL_ERROR)]      # warnings about failed probes are off while probing
+    assert cv2.utils.logging.getLogLevel() == before
+
+
+def test_v4l2_frames_follow_the_flips():
+    from imagepi.camera.v4l2 import V4L2Camera
+
+    cam = V4L2Camera()
+    cam.set_flip(True, False)
+    bgr = np.arange(2 * 3 * 3, dtype=np.uint8).reshape(2, 3, 3)
+    out = cam._oriented(bgr[..., ::-1]).copy()
+    assert np.array_equal(out, bgr[..., ::-1][:, ::-1])
+
+
+# ------------------------------------------------------------------ panel: orientation, auto exposure limit, crop, bit depth
+def test_flip_checkboxes_apply_persist_and_reset_the_crop(win):
+    cp, ctl = win.camera_panel, win.camera
+    cp.connect_btn.click()
+    b = ctl.backend
+    assert b.get_flip() == (False, False) and not cp.flip_h.isChecked()
+    cp.set_crop(100, 100, 200, 100)
+    assert cp._crop is not None and b._roi is not None
+
+    cp.flip_h.setChecked(True)
+    assert b.get_flip() == (True, False)
+    assert cp._crop is None and cp.crop_btn.text() == "Full frame" and b._roi is None   # the old crop meant another region
+    cp.flip_v.setChecked(True)
+    assert b.get_flip() == (True, True)
+    assert str(win.settings.value("camera/simulated/Simulated_camera/flip_h")).lower() == "true"
+
+    cp.connect_btn.click()                                  # disconnect
+    assert not ctl.connected
+    cp.connect_btn.click()                                  # a new connection restores the camera's saved orientation
+    assert ctl.backend is not b and ctl.backend.get_flip() == (True, True)
+    assert cp.flip_h.isChecked() and cp.flip_v.isChecked()
+    cp.flip_h.setChecked(False)
+    cp.flip_v.setChecked(False)
+    assert ctl.backend.get_flip() == (False, False)
+
+
+def test_auto_exposure_limit_applies_on_connect_and_when_edited(win):
+    cp, ctl = win.camera_panel, win.camera
+    cp.connect_btn.click()
+    b = ctl.backend
+    assert cp.limit_spin.isEnabled() and b._auto_limit == int(cp.AUTO_LIMIT_MS * 1000)    # capped at once: live view stays quick
+    cp.limit_spin.setValue(40)
+    cp.limit_spin.editingFinished.emit()
+    assert b._auto_limit == 40_000
+    cp.connect_btn.click()
+    cp.connect_btn.click()
+    assert ctl.backend._auto_limit == 40_000 and cp.limit_spin.value() == 40   # remembered for this camera
+
+
+def test_a_second_crop_adds_the_first_crops_offset_and_a_new_resolution_clears_it(win):
+    cp, ctl = win.camera_panel, win.camera
+    cp.connect_btn.click()
+    b = ctl.backend
+    cp.set_crop(100, 100, 400, 300)
+    assert b._roi == (100, 100, 400, 300)
+    cp.set_crop(10, 20, 100, 80)                        # drawn on the cropped picture
+    assert cp._crop == (110, 120, 100, 80) and b._roi == (110, 120, 100, 80)
+    cp.res_combo.setCurrentIndex(2)
+    assert cp._crop is None and b._roi is None and cp.crop_btn.text() == "Full frame"
+
+
+def test_a_camera_without_a_16bit_mode_says_so(win):
+    from imagepi.camera import SimulatedCamera
+
+    class EightBit(SimulatedCamera):
+        supports_16bit = False
+
+    cp, ctl = win.camera_panel, win.camera
+    ctl.connect_camera(EightBit(), "sim-0")
+    assert [cp.bits_combo.itemText(i) for i in range(cp.bits_combo.count())] == ["8-bit only"]
+    assert not cp.bits_combo.isEnabled() and "8 bits" in cp.bits_combo.toolTip()
+    assert cp._bits() == 8
+    ctl.disconnect_camera()
+    cp.connect_btn.click()                              # a 16-bit capable camera gets both choices back
+    assert [cp.bits_combo.itemText(i) for i in range(cp.bits_combo.count())] == ["8-bit", "16-bit"]
+    assert cp.bits_combo.isEnabled()
+
+
+def test_live_view_overlay_shows_the_exposure_that_limits_the_frame_rate(win, qtbot):
+    cp, ctl = win.camera_panel, win.camera
+    cp.connect_btn.click()
+    cp.res_combo.setCurrentIndex(2)
+    ctl.backend.fps = 60
+    cp.live_btn.click()
+    qtbot.waitUntil(lambda: win._live_tab is not None and win._live_tab._img is not None, timeout=5000)
+    ctl.backend.set_exposure(350_000)
+    live = win._live_tab
+    live._exp_shown = (0.0, "")                          # force a fresh read
+    assert "614 x 461" in live.overlay_text() and "exposure 350 ms" in live.overlay_text()
+    live._exp_shown = (0.0, "")
+    ctl.backend.set_auto_exposure(True)
+    assert "(auto)" in live.overlay_text()

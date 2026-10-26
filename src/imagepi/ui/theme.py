@@ -32,6 +32,14 @@ def _dark_palette() -> QPalette:
     p.setColor(QPalette.ColorRole.Highlight, c(42, 130, 218))
     p.setColor(QPalette.ColorRole.HighlightedText, c(255, 255, 255))
     p.setColor(QPalette.ColorRole.PlaceholderText, c(140, 140, 140))
+    # Without these a disabled control looks exactly like an enabled one (a greyed-out box was reported as "not greyed out").
+    off = QPalette.ColorGroup.Disabled
+    for role in (QPalette.ColorRole.WindowText, QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText):
+        p.setColor(off, role, c(110, 110, 110))
+    p.setColor(off, QPalette.ColorRole.Base, c(40, 40, 42))
+    p.setColor(off, QPalette.ColorRole.Button, c(50, 50, 53))
+    p.setColor(off, QPalette.ColorRole.Highlight, c(70, 70, 74))
+    p.setColor(off, QPalette.ColorRole.HighlightedText, c(140, 140, 140))
     return p
 
 

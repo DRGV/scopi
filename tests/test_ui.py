@@ -356,3 +356,13 @@ def test_macro_actions(win, qtbot, blobs, tmp_path, monkeypatch):
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (str(m), ""))
     win.macro_run()
     assert np.array_equal(doc.data[0], blobs)  # inverted twice
+
+
+def test_dark_palette_greys_out_disabled_widgets():
+    from PySide6.QtGui import QPalette
+    from imagepi.ui.theme import _dark_palette
+
+    p = _dark_palette()
+    for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText, QPalette.ColorRole.WindowText):
+        on, off = p.color(QPalette.ColorGroup.Active, role), p.color(QPalette.ColorGroup.Disabled, role)
+        assert off.lightness() < on.lightness() - 50, role     # a disabled box has to look different from an enabled one

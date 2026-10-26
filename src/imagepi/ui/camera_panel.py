@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QObject, QPointF, QRectF, QThread, QTimer, Qt, Signal, Slot
+from PySide6.QtCore import QObject, QPointF, QRectF, QSettings, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QColor, QImage, QPainter, QPen
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
                                QLabel, QPushButton, QSlider, QSpinBox, QVBoxLayout, QWidget)
@@ -342,6 +342,7 @@ class LiveView(QWidget):
         self._arr = None
         self._sel: tuple[QPointF, QPointF] | None = None
         self._why = ""   # last camera error, shown while there is no image
+        self._exp_shown = (0.0, "")   # (time asked, text): the exposure is read from the camera at most twice a second
         self.setMinimumSize(320, 240)
         self.setAutoFillBackground(True)
         controller.frame.connect(self.set_frame)
@@ -363,6 +364,21 @@ class LiveView(QWidget):
         self.update()
         self.controller.frame_consumed()
 
+    def overlay_text(self) -> str:
+        """Size, frame rate and exposure time: a frame rate below 1000 / exposure (ms) is explained by the exposure."""
+        text = f"{self._img.width()} x {self._img.height()}   {self.controller.fps:.1f} fps"
+        now = time.monotonic()
+        if now - self._exp_shown[0] >= 0.5:
+            shown = ""
+            b = self.controller.backend
+            if b is not None:
+                try:
+                    shown = f"   exposure {b.get_exposure() / 1000:g} ms" + (" (auto)" if b.get_auto_exposure() else "")
+                except Exception:
+                    pass
+            self._exp_shown = (now, shown)
+        return text + self._exp_shown[1]
+
     def _target(self) -> QRectF:
         if self._img is None:
             return QRectF()
@@ -381,7 +397,7 @@ class LiveView(QWidget):
         t = self._target()
         p.drawImage(t, self._img)
         p.setPen(QColor(255, 255, 255))
-        p.drawText(8, 18, f"{self._img.width()} x {self._img.height()}   {self.controller.fps:.1f} fps")
+        p.drawText(8, 18, self.overlay_text())
         if self._sel:
             a, b = self._sel
             p.setPen(QPen(QColor(255, 235, 0), 1.5, Qt.PenStyle.DashLine))
@@ -418,13 +434,18 @@ class CameraPanel(QWidget):
     new_image = Signal(object)       # ImageDoc
     live_view_requested = Signal(bool)
 
-    def __init__(self, controller: CameraController, parent=None):
+    AUTO_LIMIT_MS = 100.0   # default longest auto exposure: at least ~10 fps in live view (the camera's own default is 350 ms)
+
+    def __init__(self, controller: CameraController, parent=None, settings: QSettings | None = None):
         super().__init__(parent)
         self.c = controller
+        self.settings = settings
         self.presets = load_presets()
         self._devices: list = []
         self._block = False
-        self._crop: tuple[int, int, int, int] | None = None
+        self._configured = None      # the backend whose saved flips and auto exposure limit were applied
+        self._device_key = ""        # settings key of the selected camera (its display name)
+        self._crop: tuple[int, int, int, int] | None = None   # active crop in displayed full-frame pixels
         lay = QVBoxLayout(self)
 
         box = QGroupBox("Device")
@@ -455,6 +476,17 @@ class CameraPanel(QWidget):
         self.exp_spin = QDoubleSpinBox()
         self.exp_spin.setSuffix(" ms")
         self.exp_spin.setDecimals(2)
+        self.limit_spin = QDoubleSpinBox()
+        self.limit_spin.setSuffix(" ms")
+        self.limit_spin.setDecimals(0)
+        self.limit_spin.setRange(1, 1000)
+        self.limit_spin.setValue(self.AUTO_LIMIT_MS)
+        self.limit_spin.setToolTip("Longest exposure auto exposure may use. Beyond it the camera raises the gain instead. "
+                                   "Frames per second cannot exceed 1000 / this value, so a long limit makes the live view lag.")
+        self.flip_h = QCheckBox("Flip horizontally")
+        self.flip_v = QCheckBox("Flip vertically")
+        self.flip_h.setToolTip("Mirror left and right. Applies to the live view and to snaps, and is remembered for this camera.")
+        self.flip_v.setToolTip("Mirror top and bottom. Applies to the live view and to snaps, and is remembered for this camera.")
         self.gain_slider = QSlider(Qt.Orientation.Horizontal)
         self.gain_label = QLabel("100 %")
         self.awb_btn = QPushButton("Auto white balance")
@@ -466,12 +498,17 @@ class CameraPanel(QWidget):
         f.addRow("Bit depth", self.bits_combo)
         f.addRow(self.auto_exp)
         f.addRow("Exposure", self.exp_spin)
+        f.addRow("Auto limit", self.limit_spin)
         f.addRow("Gain", self.gain_slider)
         f.addRow("", self.gain_label)
         f.addRow(self.awb_btn)
         f.addRow("Temp", self.temp_spin)
         f.addRow("Tint", self.tint_spin)
         f.addRow("Crop", self.crop_btn)
+        row = QHBoxLayout()
+        row.addWidget(self.flip_h)
+        row.addWidget(self.flip_v)
+        f.addRow("Orientation", row)
         lay.addWidget(box)
         self.acq_box = box
 
@@ -523,6 +560,14 @@ class CameraPanel(QWidget):
         self._auto_timer = QTimer(self)
         self._auto_timer.setInterval(500)
         self._auto_timer.timeout.connect(self._follow_auto_exposure)
+        self._limit_timer = QTimer(self)
+        self._limit_timer.setSingleShot(True)
+        self._limit_timer.setInterval(300)
+        self._limit_timer.timeout.connect(self._apply_limit)
+        self.limit_spin.valueChanged.connect(lambda _v: self._limit_timer.start())
+        self.limit_spin.editingFinished.connect(self._apply_limit)
+        self.flip_h.toggled.connect(self._flip_changed)
+        self.flip_v.toggled.connect(self._flip_changed)
         self.gain_slider.valueChanged.connect(self._gain)
         self.awb_btn.clicked.connect(lambda: self._call(lambda: self.c.backend.auto_white_balance()))
         self.temp_spin.editingFinished.connect(self._wb)
@@ -574,6 +619,7 @@ class CameraPanel(QWidget):
             return
         name, info = self._devices[i]
         backend = available_backends()[name]()
+        self._device_key = f"{name}/{info.name}".replace(" ", "_")
         self.c.connect_camera(backend, info.id)
 
     def _toggle_live(self) -> None:
@@ -592,16 +638,23 @@ class CameraPanel(QWidget):
         self.dev_combo.setEnabled(not conn)
         if not conn:
             self.status.setText(self.status.text() if self.status.text().startswith("Camera") else "")
+            self._configured = None
+            self._crop = None
+            self.crop_btn.setText("Full frame")
             return
         b = self.c.backend
+        if b is not self._configured:
+            self._configured = b
+            self._configure_new_camera(b)
         self._block = True
         try:
             self.res_combo.clear()
             self.res_combo.addItems([f"{w} x {h}" for w, h in b.resolutions])
             self.res_combo.setCurrentIndex(b.resolution_index)
-            self.bits_combo.setEnabled(b.supports_16bit)
+            self._show_bit_depths(b)
             er, gr = b.exposure_range(), b.gain_range()
             self.exp_spin.setRange(er.min / 1000, er.max / 1000)
+            self.limit_spin.setRange(max(1.0, er.min / 1000), er.max / 1000)
             self.exp_spin.setValue(b.get_exposure() / 1000)
             self.gain_slider.setRange(int(gr.min), int(gr.max))
             self.gain_slider.setValue(b.get_gain())
@@ -611,16 +664,51 @@ class CameraPanel(QWidget):
             self.tint_spin.setValue(ti)
             self.auto_exp.setChecked(b.get_auto_exposure())
             self._auto_exposure_ui(self.auto_exp.isChecked())
+            self.limit_spin.setEnabled(b.supports_auto_exposure_limit)
         except Exception as e:
             self.status.setText(str(e))
         finally:
             self._block = False
+
+    def _show_bit_depths(self, b) -> None:
+        """A camera without a >8-bit mode says so (a plain disabled box looked like a click that did nothing)."""
+        want = ["8-bit", "16-bit"] if b.supports_16bit else ["8-bit only"]
+        if [self.bits_combo.itemText(i) for i in range(self.bits_combo.count())] != want:
+            self.bits_combo.clear()
+            self.bits_combo.addItems(want)
+        self.bits_combo.setEnabled(b.supports_16bit)
+        self.bits_combo.setToolTip("" if b.supports_16bit else "This camera has no mode deeper than 8 bits per channel.")
+
+    def _setting(self, name: str, default):
+        if self.settings is None or not self._device_key:
+            return default
+        return self.settings.value(f"camera/{self._device_key}/{name}", default)
+
+    def _save_setting(self, name: str, value) -> None:
+        if self.settings is not None and self._device_key:
+            self.settings.setValue(f"camera/{self._device_key}/{name}", value)
+
+    def _configure_new_camera(self, b) -> None:
+        """Once per connection: restore this camera's saved orientation and cap the auto exposure time."""
+        flips = [str(self._setting(n, "false")).lower() == "true" for n in ("flip_h", "flip_v")]
+        limit = float(self._setting("auto_limit_ms", self.AUTO_LIMIT_MS))
+        self._block = True
+        try:
+            self.flip_h.setChecked(flips[0])
+            self.flip_v.setChecked(flips[1])
+            self.limit_spin.setValue(limit)
+        finally:
+            self._block = False
+        self._call(lambda: b.set_flip(*flips))
+        if b.supports_auto_exposure_limit:
+            self._call(lambda: b.set_auto_exposure_limit(int(limit * 1000)))
 
     # ---------------------------------------------------------------- controls
     def _res_changed(self, i: int) -> None:
         if self._block or not self.c.connected or i < 0:
             return
         self.c.reconfigure(lambda: self.c.backend.set_resolution(i))
+        self._reset_crop()           # a new resolution starts uncropped
 
     def _bits_changed(self, i: int) -> None:
         if self._block or not self.c.connected:
@@ -661,6 +749,23 @@ class CameraPanel(QWidget):
         if not self._block and self.c.connected:
             self._call(lambda: self.c.backend.set_exposure(int(self.exp_spin.value() * 1000)))
 
+    def _apply_limit(self) -> None:
+        self._limit_timer.stop()
+        if self._block or not self.c.connected or not self.c.backend.supports_auto_exposure_limit:
+            return
+        ms = self.limit_spin.value()
+        self._save_setting("auto_limit_ms", ms)
+        self._call(lambda: self.c.backend.set_auto_exposure_limit(int(ms * 1000)))
+
+    def _flip_changed(self, _on: bool) -> None:
+        if self._block or not self.c.connected:
+            return
+        h, v = self.flip_h.isChecked(), self.flip_v.isChecked()
+        self._save_setting("flip_h", h)
+        self._save_setting("flip_v", v)
+        self._call(lambda: self.c.backend.set_flip(h, v))
+        self._reset_crop()           # the crop was chosen on the old orientation
+
     def _gain(self, v: int) -> None:
         self.gain_label.setText(f"{v} %")
         if not self._block and self.c.connected:
@@ -674,6 +779,8 @@ class CameraPanel(QWidget):
         """Hardware ROI from a rectangle selected on the live view (frame coordinates)."""
         if not self.c.connected:
             return
+        if self._crop is not None:   # the rectangle was drawn on the already cropped picture: add the crop's own offset
+            x, y = x + self._crop[0], y + self._crop[1]
         self._crop = (x, y, w, h)
         self.crop_btn.setText(f"Crop {w} x {h} (click: full frame)")
         self._call(lambda: self.c.backend.set_roi(x, y, w, h))
@@ -681,10 +788,17 @@ class CameraPanel(QWidget):
     def _clear_crop(self) -> None:
         if not self.c.connected or self._crop is None:
             return
+        self._reset_crop()
+
+    def _reset_crop(self) -> None:
+        """Back to the full frame (only touches the camera if a crop was active)."""
+        if self._crop is None:
+            return
         self._crop = None
         self.crop_btn.setText("Full frame")
-        w, h = self.c.backend.resolutions[self.c.backend.resolution_index]
-        self._call(lambda: self.c.backend.set_roi(0, 0, w, h))
+        if self.c.connected:
+            w, h = self.c.backend.resolutions[self.c.backend.resolution_index]
+            self._call(lambda: self.c.backend.set_roi(0, 0, w, h))
 
     # ---------------------------------------------------------------- capture
     def _bits(self) -> int:

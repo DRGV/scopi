@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
+import glob
+import sys
 import threading
 from typing import Callable
 
 import numpy as np
 
 from .base import CameraBackend, CameraError, CameraInfo, Range
+
+
+def _quiet_opencv(cv2):
+    """Silence OpenCV's own logging until the returned function is called (its backends warn about every failed probe)."""
+    try:
+        log = cv2.utils.logging
+        old = log.getLogLevel()
+        log.setLogLevel(log.LOG_LEVEL_ERROR)
+        return lambda: log.setLogLevel(old)
+    except Exception:
+        return lambda: None
 
 
 class V4L2Camera(CameraBackend):
@@ -28,17 +41,33 @@ class V4L2Camera(CameraBackend):
         self._gain = 100
 
     @classmethod
+    def _candidates(cls) -> list[int]:
+        """Device indexes worth opening. On Linux only the /dev/video nodes that exist: probing absent ones makes OpenCV
+        print a "can't open camera by index" warning each (the Pi has none, so the log filled with them)."""
+        if sys.platform.startswith("linux"):
+            nodes = sorted(int(n[len("/dev/video"):]) for n in glob.glob("/dev/video[0-9]*") if n[len("/dev/video"):].isdigit())
+            return nodes[:cls.MAX_PROBE]
+        return list(range(cls.MAX_PROBE))
+
+    @classmethod
     def enumerate(cls) -> list[CameraInfo]:
+        indexes = cls._candidates()
+        if not indexes:
+            return []
         import cv2
 
         out = []
-        for i in range(cls.MAX_PROBE):
-            cap = cv2.VideoCapture(i)
-            try:
-                if cap.isOpened():
-                    out.append(CameraInfo(str(i), f"Video device {i}", cls.name, [(640, 480), (1280, 720), (1920, 1080)]))
-            finally:
-                cap.release()
+        quiet = _quiet_opencv(cv2)
+        try:
+            for i in indexes:
+                cap = cv2.VideoCapture(i)
+                try:
+                    if cap.isOpened():
+                        out.append(CameraInfo(str(i), f"Video device {i}", cls.name, [(640, 480), (1280, 720), (1920, 1080)]))
+                finally:
+                    cap.release()
+        finally:
+            quiet()
         return out
 
     def open(self, camera_id: str) -> None:
@@ -126,7 +155,7 @@ class V4L2Camera(CameraBackend):
                 self._stop.wait(0.02)
                 continue
             with self._lock:
-                self._latest = fr[..., ::-1].copy()
+                self._latest = self._oriented(fr[..., ::-1]).copy()
             if self._notify:
                 self._notify()
 
@@ -158,10 +187,10 @@ class V4L2Camera(CameraBackend):
                 with self._lock:
                     f = self._latest
                 if f is not None:
-                    return f.copy()
+                    return f.copy()   # the loop already applied the flips
                 time.sleep(0.02)
             raise CameraError("no frame available")
         ok, fr = self._cap.read()
         if not ok:
             raise CameraError("failed to read frame")
-        return fr[..., ::-1].copy()
+        return self._oriented(fr[..., ::-1]).copy()
