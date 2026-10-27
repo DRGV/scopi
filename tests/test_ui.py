@@ -137,6 +137,45 @@ def test_dialog_op_with_preview(win, qtbot, blobs, monkeypatch):
     assert canvas._override is None
 
 
+def test_preview_follows_a_dragged_slider_and_older_results_still_show(win, qtbot, blobs, monkeypatch):
+    """Round 4: 'the slider produces no change in preview mode'. The dialog restarted its timer on every change, so nothing was
+    requested until the drag paused; and only the newest request's result was allowed to show, however slow."""
+    from imagepi.ui.para_dialog import ParaDialog
+
+    op = base.REGISTRY["Process>Filters>Gaussian Blur"]()
+    dlg = ParaDialog(op, op.view, can_preview=True, can_stack=False)
+    qtbot.addWidget(dlg)
+    dlg.show()
+    got = []
+    dlg.preview_requested.connect(got.append)
+    dlg.preview_box.setChecked(True)
+    f = dlg._fields["sigma"]
+    for i in range(14):                                     # a continuous drag: a change every 50 ms for 700 ms
+        f.slider.setValue(20 + 20 * i)
+        qtbot.wait(50)
+    assert len(got) >= 3, f"preview only requested {len(got)} times during the drag"
+    assert got[-1]["sigma"] > got[1]["sigma"]
+    qtbot.waitUntil(lambda: got[-1]["sigma"] == f.spin.value(), timeout=2000)   # and the final value always arrives
+
+    doc = win.add_doc(ImageDoc(blobs, "a"))
+    canvas = win.current_canvas()
+    jobs = []
+    from imagepi.ui import runner as runner_mod
+    monkeypatch.setattr(runner_mod, "start_job", jobs.append)
+    for sigma in (1.0, 2.0, 3.0):
+        win.runner._preview(op, doc, canvas, {"sigma": sigma})
+    jobs[1].run()                                            # the second request finishes first and is shown
+    first = canvas._override[0].copy()
+    jobs[0].run()                                            # the older one finishes later and must not replace it
+    assert np.array_equal(canvas._override[0], first)
+    jobs[2].run()                                            # the newest one replaces it
+    assert not np.array_equal(canvas._override[0], first)
+    win.runner._preview(op, doc, canvas, {"sigma": 4.0})
+    win.runner._clear_preview(canvas)
+    jobs[3].run()                                            # a result that arrives after the preview was cleared is dropped
+    assert canvas._override is None
+
+
 def test_para_dialog_widgets(qtbot):
     from imagepi.ui.para_dialog import ParaDialog
 
@@ -366,3 +405,21 @@ def test_dark_palette_greys_out_disabled_widgets():
     for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText, QPalette.ColorRole.WindowText):
         on, off = p.color(QPalette.ColorGroup.Active, role), p.color(QPalette.ColorGroup.Disabled, role)
         assert off.lightness() < on.lightness() - 50, role     # a disabled box has to look different from an enabled one
+
+
+def test_set_scale_reports_the_pixel_size_it_computed(win, monkeypatch, blobs):
+    """Round 4 E1: the user could not find the pixel size the calibration had computed."""
+    from imagepi.ui import main_window as mw
+
+    win.add_doc(ImageDoc(blobs, "a"))
+
+    def fake_exec(self):
+        self.unit.setCurrentText("mm")
+        self.px_len.setValue(400)
+        self.known.setValue(1.0)
+        return True
+
+    monkeypatch.setattr(mw.CalibrationDialog, "exec", fake_exec)
+    win.set_scale()
+    assert win.statusBar().currentMessage() == "Scale: 1 pixel = 0.0025 mm (400 pixels per mm)"
+    assert win.current_doc().calibration.pixel_size == pytest.approx(0.0025)

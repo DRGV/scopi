@@ -100,6 +100,7 @@ class OpRunner(QObject):
         super().__init__(window)
         self.window = window
         self._gen = 0
+        self._floor = 0    # the oldest preview request whose result may still be shown
         self._busy = False
 
     # ---------------------------------------------------------------- entry point
@@ -146,7 +147,10 @@ class OpRunner(QObject):
         job = Job(lambda: compute_preview(op, doc, para, region))
 
         def done(res):
-            if gen == self._gen:
+            # Show a result unless a newer one was already shown or the preview was cleared. (Showing only the very newest
+            # request meant nothing appeared while a slider was dragged and each preview took longer than the throttle.)
+            if gen >= self._floor:
+                self._floor = gen + 1
                 canvas.set_preview(*res)
 
         job.signals.done.connect(done)
@@ -155,6 +159,7 @@ class OpRunner(QObject):
 
     def _clear_preview(self, canvas) -> None:
         self._gen += 1
+        self._floor = self._gen + 1
         if canvas is not None:
             canvas.set_preview(None)
 

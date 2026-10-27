@@ -373,7 +373,7 @@ class LiveView(QWidget):
             b = self.controller.backend
             if b is not None:
                 try:
-                    shown = f"   exposure {b.get_exposure() / 1000:g} ms" + (" (auto)" if b.get_auto_exposure() else "")
+                    shown = f"   exposure {round(b.get_exposure() / 1000, 1):g} ms" + (" (auto)" if b.get_auto_exposure() else "")
                 except Exception:
                     pass
             self._exp_shown = (now, shown)
@@ -485,8 +485,10 @@ class CameraPanel(QWidget):
                                    "Frames per second cannot exceed 1000 / this value, so a long limit makes the live view lag.")
         self.flip_h = QCheckBox("Flip horizontally")
         self.flip_v = QCheckBox("Flip vertically")
-        self.flip_h.setToolTip("Mirror left and right. Applies to the live view and to snaps, and is remembered for this camera.")
-        self.flip_v.setToolTip("Mirror top and bottom. Applies to the live view and to snaps, and is remembered for this camera.")
+        where = ("With neither box ticked the picture matches the view through the eyepiece (camera mounted with its USB cable "
+                 "pointing to the rear of the microscope). Applies to the live view and to snaps, and is remembered for this camera.")
+        self.flip_h.setToolTip("Mirror left and right. " + where)
+        self.flip_v.setToolTip("Mirror top and bottom. " + where)
         self.gain_slider = QSlider(Qt.Orientation.Horizontal)
         self.gain_label = QLabel("100 %")
         self.awb_btn = QPushButton("Auto white balance")
@@ -690,7 +692,8 @@ class CameraPanel(QWidget):
 
     def _configure_new_camera(self, b) -> None:
         """Once per connection: restore this camera's saved orientation and cap the auto exposure time."""
-        flips = [str(self._setting(n, "false")).lower() == "true" for n in ("flip_h", "flip_v")]
+        # "mirror_h/v" (not the old "flip_h/v", which held the whole flip before the eyepiece view became the default)
+        flips = [str(self._setting(n, "false")).lower() == "true" for n in ("mirror_h", "mirror_v")]
         limit = float(self._setting("auto_limit_ms", self.AUTO_LIMIT_MS))
         self._block = True
         try:
@@ -761,8 +764,8 @@ class CameraPanel(QWidget):
         if self._block or not self.c.connected:
             return
         h, v = self.flip_h.isChecked(), self.flip_v.isChecked()
-        self._save_setting("flip_h", h)
-        self._save_setting("flip_v", v)
+        self._save_setting("mirror_h", h)
+        self._save_setting("mirror_v", v)
         self._call(lambda: self.c.backend.set_flip(h, v))
         self._reset_crop()           # the crop was chosen on the old orientation
 

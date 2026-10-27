@@ -168,7 +168,15 @@ class FakeHR(Exception):
         self.hr = hr
 
 
-def make_fake_sdk(access_denied=False, busy_start=False, deep_bits=True):
+def native_scene(w, h):
+    """The picture the fake sensor sees (random texture, so a crop can be located in it), in the eyepiece view's orientation."""
+    return np.random.default_rng(w * 1000 + h).integers(0, 256, (h, w, 3), dtype=np.uint8)
+
+
+def make_fake_sdk(access_denied=False, busy_start=False, deep_bits=True, scene=False, still_events=None):
+    """``scene``: frames come from ``native_scene`` the way the real U3CMOS18000KPA behaves according to round 4 -- put_Roi
+    is in the eyepiece view's coordinates and the delivered frames (also the cropped ones) are upside down.
+    ``still_events``: how many Snap() calls get a STILLIMAGE event (the real camera stopped after the first one until restarted)."""
     m = types.SimpleNamespace()
     m.TOUPCAM_EVENT_IMAGE, m.TOUPCAM_EVENT_STILLIMAGE, m.TOUPCAM_EVENT_DISCONNECTED = 4, 5, 0x81
     m.TOUPCAM_EVENT_ERROR, m.TOUPCAM_EVENT_NOFRAMETIMEOUT, m.TOUPCAM_EVENT_NOPACKETTIMEOUT = 0x80, 0x82, 0x85
@@ -205,6 +213,9 @@ def make_fake_sdk(access_denied=False, busy_start=False, deep_bits=True):
             self.auto, self.max_auto = 1, (350000, 300)   # the real camera starts in auto exposure, limit 350 ms
             self.pulled = []
             self.stopped_from_cb = False
+            self.roi = None
+            self.snaps = 0
+            self.restarts = 0
 
         def get_eSize(self): return self.size_idx
         def put_eSize(self, i): self.size_idx = i
@@ -224,10 +235,15 @@ def make_fake_sdk(access_denied=False, busy_start=False, deep_bits=True):
         def get_TempTint(self): return getattr(self, "tt", (6503, 1000))
         def AwbOnce(self): self.awb = True
         def put_Roi(self, *a): self.roi = a
+        def get_Roi(self): return self.roi or (0, 0) + self.get_Size()
 
         def StartPullModeWithCallback(self, fun, ctx):
             if busy_start:
                 raise FakeHR(0x800700aa)
+            if self.cb is not None:
+                self.restarts += 1
+                self.snaps = 0            # a restarted stream delivers stills again
+                self.roi = None           # and (for all the test knows) forgets the crop
             self.cb, self.ctx, self.running = fun, ctx, True
 
         def Stop(self):
@@ -241,7 +257,9 @@ def make_fake_sdk(access_denied=False, busy_start=False, deep_bits=True):
 
         def Snap(self, idx):
             self.snap_idx = idx
-            threading.Timer(0.02, lambda: self.emit(m.TOUPCAM_EVENT_STILLIMAGE)).start()
+            self.snaps += 1
+            if still_events is None or self.snaps <= still_events:
+                threading.Timer(0.02, lambda: self.emit(m.TOUPCAM_EVENT_STILLIMAGE)).start()
 
         def PullImageV3(self, buf, still, bits, row_pitch, info):
             w, h = self.get_Size() if not still else (Model.res[self.snap_idx].width, Model.res[self.snap_idx].height)
@@ -252,7 +270,13 @@ def make_fake_sdk(access_denied=False, busy_start=False, deep_bits=True):
             assert row_pitch == -1, "must request zero-padded rows"
             bpp = 6 if bits == 48 else 3
             assert len(buf) >= w * h * bpp
-            if bits == 48:
+            if scene and not still:
+                full_w, full_h = self.get_Size()
+                x, y, rw, rh = self.roi or (0, 0, full_w, full_h)
+                frame = native_scene(full_w, full_h)[y:y + rh, x:x + rw][::-1]    # delivered upside down
+                info.width, info.height = rw, rh
+                np.frombuffer(buf, np.uint8, count=rw * rh * 3)[:] = frame.reshape(-1)
+            elif bits == 48:
                 arr = np.frombuffer(buf, np.uint16, count=w * h * 3)
                 arr[:] = 40000
             else:
@@ -451,7 +475,9 @@ def test_touptek_pull_and_snap(fake_sdk):
     fake_sdk.cams[0].emit(fake_sdk.TOUPCAM_EVENT_IMAGE)
     assert got.is_set()
     f = cam.pull()
-    assert f.shape == (48, 64, 3) and f.dtype == np.uint8 and f[0, 0, 1] == 1
+    delivered = (np.arange(64 * 48 * 3) % 251).astype(np.uint8).reshape(48, 64, 3)
+    assert f.shape == (48, 64, 3) and f.dtype == np.uint8
+    assert np.array_equal(f, delivered[::-1])       # this camera delivers upside down; the default view is the eyepiece's
     assert cam.pull() is None            # flag cleared: frames are dropped, not replayed
     s = cam.snap()
     assert s.shape == (48, 64, 3)
@@ -473,21 +499,100 @@ def test_touptek_flips_frames_and_maps_the_hardware_crop(fake_sdk):
     cam.open("fake-id")
     cam.start(lambda: None)
     c = fake_sdk.cams[0]
+    delivered = (np.arange(64 * 48 * 3) % 251).astype(np.uint8).reshape(48, 64, 3)
 
     def frame():
         c.emit(fake_sdk.TOUPCAM_EVENT_IMAGE)
         return cam.pull()
 
-    base = frame()
-    cam.set_flip(True, True)
+    assert np.array_equal(frame(), delivered[::-1])               # no flips: the eyepiece view (the camera delivers it upside down)
+    cam.set_flip(True, True)                                      # user flips are relative to that view
     got = frame()
-    assert np.array_equal(got, base[::-1, ::-1]) and got.flags.c_contiguous
-    assert np.array_equal(cam.snap(), base[::-1, ::-1])           # stills follow the preview's orientation
+    assert np.array_equal(got, delivered[:, ::-1]) and got.flags.c_contiguous
+    assert np.array_equal(cam.snap(), delivered[:, ::-1])         # stills follow the preview's orientation
     cam.set_roi(11, 7, 21, 13)                                    # odd numbers are rounded down to even first
-    assert c.roi == (64 - 10 - 20, 48 - 6 - 12, 20, 12)           # the SDK wants unflipped sensor pixels
+    assert c.roi == (64 - 10 - 20, 48 - 6 - 12, 20, 12)           # the SDK wants the eyepiece view's coordinates
     cam.set_flip(False, False)
     cam.set_roi(11, 7, 21, 13)
     assert c.roi == (10, 6, 20, 12)
+
+
+@pytest.mark.parametrize("flip", [(False, False), (True, False), (False, True), (True, True)])
+def test_touptek_crop_shows_exactly_the_selected_rectangle(monkeypatch, flip):
+    """Round 4: with Flip horizontally ticked a crop came from the vertically mirrored place. Whatever the flips, the cropped
+    live view must equal that rectangle of the uncropped live view (the fake models the hardware as measured)."""
+    sdk = make_fake_sdk(scene=True)
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    cam = touptek.TouptekCamera()
+    cam.open("fake-id")
+    cam.start(lambda: None)
+
+    def frame():
+        sdk.cams[0].emit(sdk.TOUPCAM_EVENT_IMAGE)
+        return cam.pull()
+
+    cam.set_flip(*flip)
+    full = frame()
+    expect = native_scene(64, 48)                                 # the eyepiece view
+    expect = expect[:, ::-1] if flip[0] else expect
+    expect = expect[::-1] if flip[1] else expect
+    assert np.array_equal(full, expect)
+    x, y, w, h = 14, 6, 30, 20
+    cam.set_roi(x, y, w, h)
+    crop = frame()
+    assert crop.shape[:2] == (h, w) and np.array_equal(crop, full[y:y + h, x:x + w])
+    cam.set_roi(0, 0, 64, 48)
+    assert np.array_equal(frame(), full)
+
+
+def test_touptek_snap_restarts_the_stream_so_every_snap_arrives(monkeypatch):
+    """Round 4: the first snap of a live view worked, every later one timed out until the live view was restarted."""
+    sdk = make_fake_sdk(still_events=1)                           # the camera answers one Snap() per stream start
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    cam = touptek.TouptekCamera()
+    cam.open("fake-id")
+    cam.start(lambda: None)
+    cam.set_roi(10, 6, 20, 12)
+    for _ in range(3):
+        assert cam.snap(timeout=1.0).shape == (48, 64, 3)
+    assert cam.snap_restarts == 3 and cam.running
+    assert sdk.cams[0].roi == (10, 6, 20, 12)                     # the crop survives the restart
+    cam.close()
+
+
+def test_touptek_snap_retries_once_after_a_timeout(monkeypatch):
+    sdk = make_fake_sdk(still_events=1)
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    monkeypatch.setattr(touptek.TouptekCamera, "RESTART_AFTER_SNAP", False)
+    cam = touptek.TouptekCamera()
+    cam.open("fake-id")
+    cam.start(lambda: None)
+    assert cam.snap(timeout=0.3).shape == (48, 64, 3) and cam.snap_restarts == 0
+    assert cam.snap(timeout=0.3).shape == (48, 64, 3)             # the second one needed the restart
+    assert cam.snap_restarts == 1 and cam.running
+    cam.close()
+
+
+def test_touptek_snap_error_says_which_events_arrived(monkeypatch):
+    sdk = make_fake_sdk(still_events=0)                           # a camera that never answers
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    cam = touptek.TouptekCamera()
+    cam.open("fake-id")
+    cam.start(lambda: None)
+    sdk.cams[0].emit(sdk.TOUPCAM_EVENT_IMAGE)
+    with pytest.raises(CameraError, match=r"timed out waiting for still image \(SDK events since the request: none\)"):
+        cam.snap(timeout=0.1)
+    assert cam.snap_restarts == 1                                 # it did restart once before giving up
+
+
+def test_touptek_pull_is_skipped_while_the_stream_restarts(fake_sdk):
+    cam = touptek.TouptekCamera()
+    cam.open("fake-id")
+    cam.start(lambda: None)
+    fake_sdk.cams[0].emit(fake_sdk.TOUPCAM_EVENT_IMAGE)
+    with cam._restart_lock:                                       # a snap is restarting the stream
+        assert cam.pull() is None
+    assert cam.pull() is not None
 
 
 def test_touptek_auto_exposure_limit_keeps_the_gain_limit(fake_sdk):
@@ -783,7 +888,7 @@ def test_flip_checkboxes_apply_persist_and_reset_the_crop(win):
     assert cp._crop is None and cp.crop_btn.text() == "Full frame" and b._roi is None   # the old crop meant another region
     cp.flip_v.setChecked(True)
     assert b.get_flip() == (True, True)
-    assert str(win.settings.value("camera/simulated/Simulated_camera/flip_h")).lower() == "true"
+    assert str(win.settings.value("camera/simulated/Simulated_camera/mirror_h")).lower() == "true"
 
     cp.connect_btn.click()                                  # disconnect
     assert not ctl.connected
@@ -851,3 +956,105 @@ def test_live_view_overlay_shows_the_exposure_that_limits_the_frame_rate(win, qt
     live._exp_shown = (0.0, "")
     ctl.backend.set_auto_exposure(True)
     assert "(auto)" in live.overlay_text()
+
+
+# ------------------------------------------------------------------ bringup diagnostics: roitest, snaptest
+def _signal_frames(monkeypatch):
+    original = touptek.TouptekCamera.pull
+
+    def pull_ready(self):
+        self._frame_ready.set()          # the fake SDK never signals a frame by itself
+        return original(self)
+
+    monkeypatch.setattr(touptek.TouptekCamera, "pull", pull_ready)
+
+
+def test_locate_crop_finds_the_place_and_the_mirroring():
+    bringup = _load_bringup()
+    full = np.random.default_rng(3).integers(0, 256, (90, 120, 3), dtype=np.uint8)
+    crop = full[10:40, 70:100]
+    assert bringup.locate_crop(full, crop)[0:1] + bringup.locate_crop(full, crop)[2:] == ("no", 70, 10)
+    mirrored, score, x, y = bringup.locate_crop(full, crop[::-1])
+    assert (mirrored, x, y) == ("vertically", 70, 10) and score > 0.99
+    assert bringup.locate_crop(full, crop[:, ::-1])[0] == "horizontally"
+    flat = bringup.locate_crop(np.full((90, 120, 3), 7, np.uint8), np.full((30, 30, 3), 7, np.uint8))
+    assert flat[1] < 0.6                                           # no texture: no reliable match, never a false verdict
+
+
+def test_axis_verdict_tells_mirrored_from_shifted():
+    bringup = _load_bringup()
+    assert bringup.axis_verdict(100, 102, 300, 922, tol=4) == "as requested"
+    assert bringup.axis_verdict(100, 922 - 100 - 300, 300, 922, tol=4).startswith("MIRRORED")
+    assert bringup.axis_verdict(100, 250, 300, 922, tol=4).startswith("OFFSET by +150")
+
+
+def test_bringup_roitest_measures_a_mirrored_vertical_axis(monkeypatch, capsys):
+    """The fake models the camera as measured in round 4: the hardware crop's vertical axis is mirrored against the delivered frame."""
+    sdk = make_fake_sdk(scene=True)
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    _signal_frames(monkeypatch)
+    assert _load_bringup().cmd_roitest(types.SimpleNamespace(res=None, exposure_ms=10.0)) == 0
+    out = capsys.readouterr().out
+    assert out.count("horizontal position: as requested") == 2 and out.count("vertical position: MIRRORED") == 2
+    assert "crop content mirrored against the full frame: no" in out
+    assert "RESULT: horizontal ['as'] vertical ['MIRRORED']" in out
+    assert sdk.cams[0].roi == (0, 0, 64, 48)                               # left at the full frame
+    assert sdk.cams[0].closed
+
+
+def test_bringup_roitest_says_when_there_is_nothing_to_match(monkeypatch, capsys):
+    sdk = make_fake_sdk()                                                    # the plain test pattern repeats every 251 bytes: no unique match
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    _signal_frames(monkeypatch)
+    monkeypatch.setattr(sdk.Toupcam, "Open", staticmethod(lambda cid: _flat_cam(sdk)))
+    rc = _load_bringup().cmd_roitest(types.SimpleNamespace(res=0, exposure_ms=10.0))
+    assert rc == 1 and "no reliable match" in capsys.readouterr().out
+
+
+def _flat_cam(sdk):
+    class Flat:
+        """A camera looking at a blank wall."""
+        def __init__(self):
+            self.size, self.roi, self.closed = (64, 48), None, False
+        def get_eSize(self): return 0
+        def put_eSize(self, i): self.size = ((64, 48), (32, 24))[i]
+        def get_Size(self): return self.size
+        def put_Option(self, *a): pass
+        def put_AutoExpoEnable(self, v): pass
+        def put_ExpoTime(self, v): pass
+        def get_ExpoTime(self): return 10000
+        def put_Roi(self, *a): self.roi = a
+        def get_Roi(self): return self.roi
+        def StartPullModeWithCallback(self, fun, ctx): self.cb, self.ctx = fun, ctx
+        def Stop(self): pass
+        def Close(self): self.closed = True
+        def PullImageV3(self, buf, still, bits, row_pitch, info):
+            x, y, w, h = self.roi or (0, 0) + self.size
+            info.width, info.height = w, h
+            np.frombuffer(buf, np.uint8, count=w * h * 3)[:] = 90
+    return Flat()
+
+
+def test_bringup_snaptest_reports_every_snap(monkeypatch, capsys):
+    sdk = make_fake_sdk(still_events=1)
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    _signal_frames(monkeypatch)
+    bringup = _load_bringup()
+    monkeypatch.setattr(bringup, "LIVE_AFTER_SNAP_S", 0.05)
+    assert bringup.cmd_snaptest(types.SimpleNamespace(count=3, res=None, exposure_ms=10.0, no_restart=False)) == 0
+    out = capsys.readouterr().out
+    assert "restart after each snap: True" in out
+    assert [l for l in out.splitlines() if l.startswith("snap ")].__len__() == 3 and "stream restarts 1" in out and "FAILED" not in out
+
+
+def test_bringup_snaptest_without_restart_shows_the_sdk_behaviour(monkeypatch, capsys):
+    sdk = make_fake_sdk(still_events=1)
+    monkeypatch.setattr(touptek, "_toupcam", sdk)
+    _signal_frames(monkeypatch)
+    monkeypatch.setattr(touptek.TouptekCamera, "_still_timeout", lambda self: 0.2)
+    bringup = _load_bringup()
+    monkeypatch.setattr(bringup, "LIVE_AFTER_SNAP_S", 0.05)
+    assert bringup.cmd_snaptest(types.SimpleNamespace(count=2, res=None, exposure_ms=10.0, no_restart=True)) == 0
+    out = capsys.readouterr().out
+    assert "restart after each snap: False" in out
+    assert "snap 1: 64x48" in out and "stream restarts 0" in out and "snap 2: 64x48" in out and "stream restarts 1" in out

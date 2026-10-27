@@ -101,6 +101,8 @@ def _hr_text(ex) -> str:
 
 class TouptekCamera(CameraBackend):
     name = "touptek"
+    delivered_flip = (False, True)   # frames arrive upside down against the eyepiece view and the hardware ROI axes (see CameraBackend)
+    RESTART_AFTER_SNAP = True        # the second snap of a run never delivered its still (round 4); a restarted stream does
 
     def __init__(self):
         self._tc = None
@@ -118,7 +120,11 @@ class TouptekCamera(CameraBackend):
         self._bits = 8
         self._raw = False
         self._auto_exp = False
+        self._events: dict[int, int] = {}
+        self._restart_lock = threading.Lock()
+        self._roi: tuple[int, int, int, int] | None = None   # active hardware crop, in the camera's own coordinates
         self.dropped = 0
+        self.snap_restarts = 0     # how often a snap had to restart the stream (the bringup snaptest reports it)
 
     # ---- discovery ----
     @classmethod
@@ -215,6 +221,7 @@ class TouptekCamera(CameraBackend):
             raise CameraError("stop the camera before changing resolution")
         cam.put_eSize(index)
         self._res_index = index
+        self._roi = None
 
     @property
     def resolution_index(self) -> int:
@@ -269,10 +276,12 @@ class TouptekCamera(CameraBackend):
 
     def set_roi(self, x: int, y: int, w: int, h: int) -> None:
         """Hardware ROI crop. The rectangle is in displayed full-frame pixels (after the flips); offsets/sizes are
-        rounded down to even numbers as the SDK requires. The SDK wants it in unflipped sensor pixels."""
+        rounded down to even numbers as the SDK requires. The SDK wants it in the camera's own axes (the eyepiece view's)."""
         e = lambda v: int(v) & ~1
         full_w, full_h = self.resolutions[self._res_index]
-        self._need().put_Roi(*self._roi_to_sensor(e(x), e(y), e(w), e(h), full_w, full_h))
+        roi = self._roi_to_sensor(e(x), e(y), e(w), e(h), full_w, full_h)
+        self._need().put_Roi(*roi)
+        self._roi = roi if roi != (0, 0, full_w, full_h) else None
 
     @property
     def supports_16bit(self) -> bool:
@@ -317,10 +326,32 @@ class TouptekCamera(CameraBackend):
             raise CameraError(f"failed to start camera: {_hr_text(ex)}") from ex
         self._running = True
 
+    def _restart_stream(self) -> None:
+        """Stop and start the stream again with the same callbacks: what 'stop live view, start live view' does."""
+        cam = self._need()
+        with self._restart_lock:
+            self.snap_restarts += 1
+            self._running = False
+            cam.Stop()
+            self._frame_ready.clear()
+            try:
+                cam.StartPullModeWithCallback(self._callback, self)
+                if self._roi is not None:
+                    cam.put_Roi(*self._roi)
+            except self._tc.HRESULTException as ex:
+                raise CameraError(f"failed to restart the camera: {_hr_text(ex)}") from ex
+            self._running = True
+
+    def event_summary(self) -> str:
+        """The SDK events seen since the last snap request, e.g. 'IMAGE x37, EXPOSURE x2' (for error messages)."""
+        names = {v: k[len("TOUPCAM_EVENT_"):] for k, v in vars(self._tc).items() if k.startswith("TOUPCAM_EVENT_")}
+        return ", ".join(f"{names.get(e, hex(e))} x{n}" for e, n in sorted(self._events.items())) or "none"
+
     @staticmethod
     def _callback(event, ctx) -> None:
         # Runs on an SDK thread. Only flag and notify; never call Stop/Close here.
         tc = ctx._tc
+        ctx._events[event] = ctx._events.get(event, 0) + 1
         if event == tc.TOUPCAM_EVENT_IMAGE:
             ctx._frame_ready.set()
             n = ctx._notify
@@ -351,34 +382,68 @@ class TouptekCamera(CameraBackend):
     def pull(self):
         if not self._running or not self._frame_ready.is_set():
             return None
-        self._frame_ready.clear()
+        if not self._restart_lock.acquire(blocking=False):   # the stream is being restarted: no frame now
+            return None
+        try:
+            if not self._running:
+                return None
+            self._frame_ready.clear()
+            info = self._tc.ToupcamFrameInfoV3()
+            try:
+                # rowPitch -1 = zero padding (rows are exactly width*bytes-per-pixel)
+                self._cam.PullImageV3(self._buf, 0, 48 if self._bits == 16 else 24, -1, info)
+            except self._tc.HRESULTException as ex:
+                if _hr(ex) == E_PENDING:   # no new frame yet
+                    return None
+                raise CameraError(f"failed to read a frame: {_hr_text(ex)}") from ex
+            return self._to_array(self._buf, info.width, info.height, self._bits)
+        finally:
+            self._restart_lock.release()
+
+    def _still_timeout(self) -> float:
+        try:
+            return max(5.0, 2.0 * self.get_exposure() / 1e6 + 4.0)   # a long exposure delays the still
+        except Exception:
+            return 10.0
+
+    def _pull_still(self) -> np.ndarray:
+        cam = self._need()
+        depth = 48 if self._bits == 16 else 24
         info = self._tc.ToupcamFrameInfoV3()
         try:
-            # rowPitch -1 = zero padding (rows are exactly width*bytes-per-pixel)
-            self._cam.PullImageV3(self._buf, 0, 48 if self._bits == 16 else 24, -1, info)
+            cam.PullImageV3(None, 1, depth, 0, info)   # peek: dimensions only (as the vendor's demo does)
+            buf = self._alloc(info.width, info.height)
+            cam.PullImageV3(buf, 1, depth, -1, info)
         except self._tc.HRESULTException as ex:
-            if _hr(ex) == E_PENDING:   # no new frame yet
-                return None
-            raise CameraError(f"failed to read a frame: {_hr_text(ex)}") from ex
-        return self._to_array(self._buf, info.width, info.height, self._bits)
+            raise CameraError(f"failed to read the still image: {_hr_text(ex)}") from ex
+        return self._to_array(buf, info.width, info.height, self._bits)
 
-    def snap(self, bits: int = 8, timeout: float = 10.0) -> np.ndarray:
-        """Capture a still at the largest still resolution (the preview must be running)."""
+    def snap(self, bits: int = 8, timeout: float | None = None) -> np.ndarray:
+        """Capture a still at the largest still resolution (the preview must be running).
+
+        Round 4 on the Pi: the first snap after starting the live view worked and every later one timed out until the live
+        view was stopped and started again. So the stream is restarted after each still, and once more (then asking again)
+        if a still does not arrive."""
         cam = self._need()
         if not self._running:
             raise CameraError("start the camera before snapping")
-        self._still_ready.clear()
-        try:
-            cam.Snap(0)
-        except self._tc.HRESULTException as ex:
-            raise CameraError(f"snap failed: {_hr_text(ex)}") from ex
-        if not self._still_ready.wait(timeout):
-            raise CameraError("timed out waiting for still image")
-        info = self._tc.ToupcamFrameInfoV3()
-        cam.PullImageV3(None, 1, 0, 0, info)  # peek: dimensions only
-        buf = self._alloc(info.width, info.height)
-        cam.PullImageV3(buf, 1, 48 if self._bits == 16 else 24, -1, info)
-        return self._to_array(buf, info.width, info.height, self._bits)
+        wait = self._still_timeout() if timeout is None else timeout
+        for attempt in (1, 2):
+            self._still_ready.clear()
+            self._events.clear()
+            try:
+                cam.Snap(0)
+            except self._tc.HRESULTException as ex:
+                raise CameraError(f"snap failed: {_hr_text(ex)}") from ex
+            if self._still_ready.wait(wait):
+                break
+            if attempt == 2:
+                raise CameraError(f"timed out waiting for still image (SDK events since the request: {self.event_summary()})")
+            self._restart_stream()
+        arr = self._pull_still()
+        if self.RESTART_AFTER_SNAP:
+            self._restart_stream()
+        return arr
 
     def metadata(self) -> dict:
         md = super().metadata()

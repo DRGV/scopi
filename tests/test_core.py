@@ -100,6 +100,11 @@ def test_calibration():
     assert units == 100 and px == 200
 
 
+def test_calibration_describes_itself_for_the_status_line():
+    assert Calibration().from_known_distance(400, 1.0, "mm").describe() == "Scale: 1 pixel = 0.0025 mm (400 pixels per mm)"
+    assert Calibration().describe() == "Scale cleared: measurements are in pixels"
+
+
 def test_results_table(tmp_path):
     t = ResultsTable()
     t.add_row(Area=1.0, Mean=2.0)

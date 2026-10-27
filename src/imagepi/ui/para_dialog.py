@@ -125,7 +125,9 @@ class ParaDialog(QDialog):
         return self.stack_box.isVisible() and self.stack_box.isChecked()
 
     def _changed(self) -> None:
-        if self.preview_box.isChecked():
+        # Throttle, don't debounce: restarting the timer on every change meant the picture only updated once a dragged
+        # slider paused (round 4: "the slider produces no change in preview mode"). Now it follows at about 4 updates a second.
+        if self.preview_box.isChecked() and not self._timer.isActive():
             self._timer.start()
 
     def _preview_toggled(self, on: bool) -> None:

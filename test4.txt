@@ -1,0 +1,123 @@
+ImagePi - Pi 5 test round 4
+===========================
+
+What testrsResults.txt (testsr.txt and test3's D and E1) showed
+PASSED on the Pi:
+- Part A: 175 passed. Part B: at a fixed 10 ms exposure 4.8 / 17.2 / 31.8 fps at 4912x3684 / 2456x1842 / 1228x922 (vendor spec 5.6 / 18.1 / 32.2),
+  so the USB link is fine and test3's Part G (usbfs_memory_mb) is not needed. With the auto limit at 100 ms the camera chose 21 ms.
+- In the app: "Auto exposure" ticked at connect, the Exposure box greyed, Auto limit 100 ms, Bit depth "8-bit only" with its tooltip, the exposure
+  in the overlay, Auto limit works (you work at 75 to 150 ms, so 100 stays the default), 32.1 / 17.0 / 4.2 fps without freezing, snap saves an
+  ImageJ TIFF whose Info text matches the app settings, quitting leaves no VIDEOIO/textinput lines and the camera is free afterwards.
+- Part D: outlines easy to see, Otsu + Analyze Particles as expected, Undo across Image > Type > 8-bit restores histogram and Brightness/Contrast,
+  Gaussian sigma 2 on the 18 MP RGB image about 0.5 s (round 2: 2.0 s), out.tif 54,287,808 bytes and correct, the simulated camera fine.
+  Speed vs round 2: repaint at fit 16.4 ms (35.7), pan 15.2 (31.0), zoom sweep 14.1 (23.9), gray Gaussian 153 ms (658), RGB Gaussian 534 ms (2040), throttle 0x0.
+- Test3 E1: a 0.5 mm span measured 0.499998 mm.
+
+PROBLEMS found, and what I changed (all on the Mac, none tested on the Pi yet):
+1. Orientation. Without ticks the picture was the paper mirrored left-to-right; the eyepiece shows the paper rotated 180 degrees; Flip vertically
+   alone matched the eyepiece. You want no ticks to mean "same as the eyepiece" (USB cable pointing to the rear of the microscope). Done: the camera
+   backend now knows its frames arrive upside down (delivered_flip), and the two boxes are changes relative to the eyepiece view. Your saved
+   "Flip horizontally" tick is not reused (the settings keys were renamed), so both boxes start unticked.
+2. Crop with Flip horizontally ticked came from the wrong place. From a.png / a-cropped.png: x was right, but the crop started at about y 42 where you
+   selected y 196 (of 922): 922 - 196 - 684 = 42, i.e. the vertically mirrored place. So the camera's hardware crop is measured in the eyepiece view's
+   coordinates while its frames arrive upside down; the app now maps the selection that way. This is an inference from one screenshot: roitest (Part B)
+   measures it on the camera directly. The second crop being off was the same error (the first crop was not where ImagePi thought).
+3. A second snap in the same live view timed out; stopping and starting the live view fixed it. The camera backend now restarts the stream after
+   every still (about a second, the live view carries on by itself), and once more if a still does not arrive; the error now lists the SDK events seen.
+   snaptest (Part C) repeats snaps and shows what the SDK itself does.
+4. Gaussian Blur: the slider showed no change in preview mode. On the Mac the slider did request previews, so the likely cause is that the dialog waited
+   for the drag to pause before asking, and the picture only showed the newest request. Now the preview follows the drag about four times a second.
+   If it still shows nothing on the Pi I need to know whether typing a Sigma value works (Part D4).
+5. Line measurements: the Results row had empty X, Y and Unit columns and no pixel length. Now it has X, Y (the line's midpoint), Unit and "Length (px)",
+   and Set Scale reports "Scale: 1 pixel = ... mm (... pixels per mm)" in the status line, so you can see the pixel size it computed.
+6. The overlay printed "exposure 21.052 ms"; it now shows one decimal. pi_bringup.py render no longer prints the Wayland textinput line.
+Noted for later (in the readme, not changed now): the main window cannot be made shorter than its panels need, the outline colour and width should
+become user-selectable.
+
+Rules (same as before)
+- Normal user ("sch"), bash, venv active (cd ~/Code/imagepi && source .venv/bin/activate). sudo only where a step says so.
+- Stop at the first failure and send me the output. "Send me" = paste the text.
+- Close the app before running any camera script, and close any script before starting the app. Only one program can hold the camera.
+
+
+PART A - Get the new code onto the Pi
+-------------------------------------
+
+A1. On the Mac:
+      cd ~/Code/Python/imagepy
+      git status
+      git add readme.md scripts src tests test4.txt
+      git commit -m "Eyepiece-view orientation, crop mapping, snap restart, slider preview, line measurements, roitest/snaptest"
+      git push
+    Do not add a.mov (100 MB, GitHub refuses files over 100 MB), a.png, a-cropped.png or testrsResults.txt: the command above names only the folders
+    and files to add, so they stay out.
+A2. On the Pi:
+      cd ~/Code/imagepi
+      git pull
+      QT_QPA_PLATFORM=offscreen python -m pytest -q 2>&1 | tail -5
+    Expect "193 passed". Send me the last lines.
+
+
+PART B - Where does a hardware crop land? (command line, about 1 minute, camera only)
+-------------------------------------------------------------------------------------
+
+B1. Nothing may hold the camera: pgrep -af "imagepi|pi_bringup|toupcam" (no output except the pgrep line). Lamp on, lens cap off, the tissue-paper
+    slide under the lens (a still, textured picture; nothing may move while it runs), focus it roughly.
+B2. python scripts/pi_bringup.py roitest 2>&1 | tee ~/roitest.log
+    It grabs a full frame, asks the camera for an off-centre crop, finds the cropped picture inside the full frame and says where it was.
+    My prediction, for all three resolutions:
+      "horizontal position: as requested;  vertical position: MIRRORED (requested 92, found 554 = 922 - 92 - 276)"
+      "crop content mirrored against the full frame: no"
+      "RESULT: horizontal ['as'] vertical ['MIRRORED'] ..."
+    If it says "as requested" for both, my model is wrong: send me the file and do not go on to Part D2. If a line says "no reliable match", the scene
+    has too little texture or something moved: use the tissue paper, more light, and run it again. Send me ~/roitest.log.
+
+
+PART C - Snaps in a row (command line, about 1 minute)
+------------------------------------------------------
+
+C1. python scripts/pi_bringup.py snaptest --count 4 2>&1 | tee ~/snaptest.log
+    Expect four lines "snap N: 4912x3684 in X s, stream restarts 1, live frames pulled afterwards: M" with M above 0 and no FAILED.
+C2. python scripts/pi_bringup.py snaptest --count 3 --no-restart 2>&1 | tee ~/snaptest_norestart.log
+    This switches ImagePi's restart off and shows what the SDK does by itself. If the second snap needs a restart you will see "snap 2: ... in 5 s or more, stream
+    restarts 1"; if every snap works at once without a restart, tell me. Send me both logs.
+
+
+PART D - The camera in the app
+------------------------------
+
+Start the app with: python -m imagepi 2>&1 | tee ~/gui.log
+Camera > Camera Panel (Ctrl+Shift+C), Refresh, select "U3CMOS18000KPA [touptek]", Connect, Resolution 1228 x 922, Start live view.
+USB cable of the camera pointing to the rear of the microscope for these checks.
+
+D1. Orientation. Both Flip boxes start unticked. Put a printed letter F (or a line of text) on the stage, look at it through the eyepiece, then at the live
+    view. They must match. Tell me "matches", or what differs and which box fixes it (none / horizontal / vertical / both).
+D2. Crop, with the boxes unticked: drag a rectangle around the letter. The live view must show exactly what you enclosed. Drag a second rectangle on the
+    cropped picture: it must narrow to what you enclosed. Click the Crop button (full frame). Now tick Flip horizontally and repeat; untick it, tick
+    Flip vertically and repeat; tick both and repeat. Send me "ok" for each of the four, or which one is off and by how much (a screenshot like a.png
+    and a-cropped.png of the failing one helps; do not put the movie in git).
+D3. Snaps in a row. With the live view running at 1228 x 922: Snap, close the new tab, Snap again, again, again (at least four, without stopping the live view).
+    Tell me: does every snap arrive, roughly how many seconds each takes, does the live view carry on by itself afterwards (a short blink is expected),
+    and does it still work with a crop active (crop, then Snap: the snap is the full 4912 x 3684 picture).
+D4. The Gaussian slider. Quit the camera view if you like (Disconnect). File > Open ~/imagepi-test/cells_gray.png, Process > Filters > Gaussian Blur,
+    tick Preview. Drag the slider slowly to the right and back: the picture should blur progressively while you drag (about four updates a second). Then type 10
+    in the Sigma box and wait a second. Tell me: "follows while dragging", "only after I let go" or "nothing", for the slider and for typing. OK.
+D5. Measuring. File > Open the snap of the 0.01 mm slide (or snap it), draw a Line along 1 mm of the scale, Image > Set Scale (Known distance 1, Unit mm), OK.
+    Read the status line at the bottom of the window ("Scale: 1 pixel = ... mm (... pixels per mm)") and send it. Draw another line along 0.5 mm and press Ctrl+M:
+    the Results row now has Length, Length (px), Angle, Mean, Min, Max, StdDev, X, Y and Unit filled in. Send me that row. Length (px) times the pixel size must equal Length.
+D6. Quit (File > Quit). Then: grep -c "VIDEOIO\|textinput" ~/gui.log   (expect 0), and
+      python scripts/pi_bringup.py render 2>&1 | grep -c textinput   (expect 0)
+
+
+Then continue with test3
+------------------------
+- Part E for the other objectives you own: for each, repeat E1 (a line along a known distance, Set Scale, "Save as objective preset" with a name such as 10x), then
+  switch Objective in the Camera panel and check the pixel size in the status line when you open a snap.
+- Parts F and G are not needed unless a start error returns.
+
+
+What to send back
+-----------------
+- Part A: the pytest tail.
+- Part B: ~/roitest.log. Part C: ~/snaptest.log and ~/snaptest_norestart.log.
+- Part D: what you saw in D1 to D5, the two grep counts in D6, and ~/gui.log if anything went wrong.

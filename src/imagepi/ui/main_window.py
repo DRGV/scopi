@@ -461,6 +461,7 @@ class MainWindow(QMainWindow):
             d.calibration = dlg.calibration()
             d.notify("calibration")
             self.camera_panel.reload_presets()
+            self.statusBar().showMessage(d.calibration.describe(), 15000)
 
     def _toggle_scale_bar(self, on: bool) -> None:
         for v in self._views:

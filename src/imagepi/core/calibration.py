@@ -41,6 +41,12 @@ class Calibration:
                 best = m * base
         return best, best / self.pixel_size
 
+    def describe(self) -> str:
+        """'1 pixel = 0.00203 mm (492.6 pixels per mm)', for the status line after Set Scale."""
+        if not self.calibrated:
+            return "Scale cleared: measurements are in pixels"
+        return f"Scale: 1 pixel = {self.pixel_size:.6g} {self.unit} ({1 / self.pixel_size:.6g} pixels per {self.unit})"
+
     def to_dict(self) -> dict:
         return {"pixel_size": self.pixel_size, "unit": self.unit}
 

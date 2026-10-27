@@ -100,8 +100,13 @@ class CameraBackend(ABC):
         """Longest exposure auto exposure may choose (it raises the gain instead). No-op where unsupported."""
 
     # ---- orientation ----
-    # A microscope's optics often mirror or invert the picture, so the user can flip it. Applied to previews and stills.
-    _flip: tuple[bool, bool] = (False, False)   # (horizontal, vertical)
+    # Orientation is relative to the view through the eyepiece (the microscope with the camera's USB cable pointing to the rear):
+    # with no flips the picture matches it. ``set_flip`` mirrors it further, for a camera mounted another way. Applied to previews and stills.
+    _flip: tuple[bool, bool] = (False, False)   # (horizontal, vertical), the user's adjustment
+    # The SDK hands over frames mirrored against that view (and against its own hardware ROI axes) in these directions.
+    # The ToupTek U3CMOS18000KPA delivers them upside down: the round 4 checks showed the unflipped picture mirrored
+    # against the eyepiece and a hardware crop that came from the vertically mirrored place.
+    delivered_flip: tuple[bool, bool] = (False, False)
 
     def set_flip(self, horizontal: bool, vertical: bool) -> None:
         self._flip = (bool(horizontal), bool(vertical))
@@ -110,8 +115,8 @@ class CameraBackend(ABC):
         return self._flip
 
     def _oriented(self, arr: np.ndarray) -> np.ndarray:
-        """``arr`` mirrored as set by ``set_flip`` (a view; callers copy)."""
-        h, v = self._flip
+        """A delivered frame turned into the picture the user asked for (a view; callers copy)."""
+        h, v = (a != b for a, b in zip(self._flip, self.delivered_flip))
         if h:
             arr = arr[:, ::-1]
         if v:
@@ -119,7 +124,8 @@ class CameraBackend(ABC):
         return arr
 
     def _roi_to_sensor(self, x: int, y: int, w: int, h: int, full_w: int, full_h: int) -> tuple[int, int, int, int]:
-        """A rectangle in displayed (flipped) full-frame pixels -> the same region in unflipped sensor pixels."""
+        """A rectangle in displayed full-frame pixels -> the same region in the camera's own (hardware ROI) coordinates,
+        which are the eyepiece view's: the displayed picture differs from it only by the user's flips."""
         fh, fv = self._flip
         return (full_w - x - w if fh else x, full_h - y - h if fv else y, w, h)
 

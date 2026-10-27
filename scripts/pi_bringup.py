@@ -7,6 +7,10 @@
                                                    # lsusb, enumerate, fps + USB throughput per resolution (fixed short exposure by default)
     python scripts/pi_bringup.py camdiag [--res N] [--bandwidth %] [--exposure-ms MS] [--secs 3]
                                                    # the vendor SDK only (no ImagePi camera code): USB state, flags, start/pull per resolution
+    python scripts/pi_bringup.py roitest [--res N] [--exposure-ms 10]
+                                                   # where does a hardware crop land? compares the cropped frame with the full frame
+    python scripts/pi_bringup.py snaptest [--count 4] [--res N] [--no-restart]
+                                                   # several snaps in a row through ImagePi's camera code: does every one arrive?
 
 Run `render` under Wayland (QT_QPA_PLATFORM=wayland) on the Pi; use QT_QPA_PLATFORM=offscreen elsewhere.
 """
@@ -47,6 +51,9 @@ def cmd_check(_a) -> int:
 
 
 def cmd_render(a) -> int:
+    import os
+
+    os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.wayland.textinput.warning=false")   # harmless focus noise (the app silences it too)
     import numpy as np
     from PySide6.QtCore import QPointF
     from PySide6.QtWidgets import QApplication
@@ -262,6 +269,183 @@ def cmd_camdiag(a) -> int:
     return 1 if failed else 0
 
 
+def _even(v: float) -> int:
+    return int(v) & ~1
+
+
+def locate_crop(full, crop):
+    """Where does ``crop`` sit inside ``full`` (both H x W x 3 uint8 RGB)?
+
+    Returns ``(mirrored, score, x, y)``: the best of the four mirror states of the crop (``"no"``, ``"vertically"``,
+    ``"horizontally"``, ``"both"``), its normalised correlation (1.0 = identical) and the top-left corner in full-frame pixels.
+    """
+    import cv2
+    import numpy as np
+
+    g_full = cv2.cvtColor(np.ascontiguousarray(full), cv2.COLOR_RGB2GRAY)
+    g_crop = cv2.cvtColor(np.ascontiguousarray(crop), cv2.COLOR_RGB2GRAY)
+    if g_crop.std() < 2.0 or g_full.std() < 2.0:     # a blank scene correlates "perfectly" everywhere (OpenCV returns 1.0)
+        return ("no", 0.0, 0, 0)
+    s = min(1.0, 600.0 / max(g_full.shape))                 # match on a small copy: the 18 MP frame would take minutes
+    if s < 1.0:
+        g_full = cv2.resize(g_full, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
+        g_crop = cv2.resize(g_crop, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
+    best = ("no", -1.0, 0, 0)
+    for name, t in (("no", g_crop), ("vertically", g_crop[::-1]), ("horizontally", g_crop[:, ::-1]), ("both", g_crop[::-1, ::-1])):
+        res = np.nan_to_num(cv2.matchTemplate(g_full, np.ascontiguousarray(t), cv2.TM_CCOEFF_NORMED))
+        _, score, _, loc = cv2.minMaxLoc(res)
+        if score > best[1]:
+            best = (name, float(score), int(round(loc[0] / s)), int(round(loc[1] / s)))
+    return best
+
+
+def axis_verdict(requested: int, found: int, size: int, full: int, tol: int) -> str:
+    """Compare where a crop was requested with where it was found along one axis."""
+    if abs(found - requested) <= tol:
+        return "as requested"
+    if abs(found - (full - requested - size)) <= tol:
+        return f"MIRRORED (requested {requested}, found {found} = {full} - {requested} - {size})"
+    return f"OFFSET by {found - requested:+d} px (requested {requested}, found {found})"
+
+
+def _grab(cam, shape, n=3, timeout=20.0):
+    """Mean of the next ``n`` live frames that are ``shape`` = (height, width) big, as uint8; None if they never arrive."""
+    import numpy as np
+
+    frames, t0 = [], time.time()
+    while len(frames) < n and time.time() - t0 < timeout:
+        f = cam.pull()
+        if f is None:
+            time.sleep(0.002)
+        elif f.shape[:2] == tuple(shape):
+            frames.append(f.astype(np.float32))
+    return np.mean(frames, axis=0).astype(np.uint8) if len(frames) == n else None
+
+
+def _open_first_touptek():
+    from imagepi.camera.base import CameraError
+    from imagepi.camera.touptek import TouptekCamera
+
+    try:
+        infos = TouptekCamera.enumerate()
+    except CameraError as e:
+        print(e)
+        return None, None
+    if not infos:
+        print("no ToupTek camera found")
+        return None, None
+    print("found:", infos[0].name, infos[0].resolutions)
+    cam = TouptekCamera()
+    cam.open(infos[0].id)
+    return cam, infos[0]
+
+
+def cmd_roitest(a) -> int:
+    """Where does a hardware crop land? Needs a still, textured scene (tissue paper), lamp on, nothing moving.
+
+    Raw frames only (no ImagePi mirroring): for each resolution a full frame, then a crop requested at 15 % / 10 % of the
+    frame with 30 % x 30 % size (off-centre on purpose), and a template match of the crop in the full frame.
+    """
+    from imagepi.camera.base import CameraError
+
+    cam, _info = _open_first_touptek()
+    if cam is None:
+        return 1
+    cam.delivered_flip = (False, False)      # the mirroring is what is being measured
+    cam.set_flip(False, False)
+    failed, verdicts = 0, []
+    try:
+        cam.set_auto_exposure(False)
+        cam.set_exposure(int(a.exposure_ms * 1000))
+        print(f"exposure: fixed {a.exposure_ms:g} ms")
+        order = [a.res] if a.res is not None else list(range(len(cam.resolutions) - 1, -1, -1))   # smallest first
+        for idx in order:
+            W, H = cam.resolutions[idx]
+            x, y, w, h = _even(W * 0.15), _even(H * 0.10), _even(W * 0.30), _even(H * 0.30)
+            try:
+                cam.set_resolution(idx)
+                cam.start(lambda: None)
+                full = _grab(cam, (H, W))
+                if full is None:
+                    raise CameraError(f"no {W}x{H} frames arrived")
+                cam.set_roi(x, y, w, h)
+                crop = _grab(cam, (h, w))
+                if crop is None:
+                    raise CameraError(f"after the crop request no {w}x{h} frames arrived")
+                try:
+                    readback = tuple(cam._cam.get_Roi())
+                except Exception:
+                    readback = "n/a"
+                cam.set_roi(0, 0, W, H)
+            except CameraError as e:
+                failed += 1
+                print(f"[{idx}] {W}x{H}: FAILED  {e}")
+                continue
+            finally:
+                cam.stop()
+            mirrored, score, fx, fy = locate_crop(full, crop)
+            tol = max(4, int(2 * max(W, H) / 600))
+            print(f"[{idx}] {W}x{H}: crop requested at x={x} y={y} size {w}x{h}; get_Roi returned {readback}")
+            if score < 0.6:
+                failed += 1
+                print(f"     no reliable match (best score {score:.2f}): use a still, textured scene such as tissue paper and keep it still")
+                continue
+            hx, hy = axis_verdict(x, fx, w, W, tol), axis_verdict(y, fy, h, H, tol)
+            print(f"     found in the full frame at x={fx} y={fy} (match {score:.2f}); crop content mirrored against the full frame: {mirrored}")
+            print(f"     horizontal position: {hx};  vertical position: {hy}")
+            verdicts.append((hx.split(" ")[0], hy.split(" ")[0]))
+    finally:
+        cam.close()
+    if verdicts:
+        print("RESULT: horizontal", sorted({v[0] for v in verdicts}), "vertical", sorted({v[1] for v in verdicts}),
+              "(as = as requested, MIRRORED = measured from the opposite edge)")
+    return 1 if failed else 0
+
+
+LIVE_AFTER_SNAP_S = 1.0
+
+
+def cmd_snaptest(a) -> int:
+    """Several snaps in a row through ImagePi's camera backend. Round 4: the second snap of a run never arrived."""
+    from imagepi.camera.base import CameraError
+
+    cam, _info = _open_first_touptek()
+    if cam is None:
+        return 1
+    if a.no_restart:
+        cam.RESTART_AFTER_SNAP = False
+    failed = 0
+    try:
+        cam.set_auto_exposure(False)
+        cam.set_exposure(int(a.exposure_ms * 1000))
+        idx = a.res if a.res is not None else len(cam.resolutions) - 1
+        cam.set_resolution(idx)
+        print(f"preview {cam.resolutions[idx][0]}x{cam.resolutions[idx][1]}, exposure {a.exposure_ms:g} ms, restart after each snap: {cam.RESTART_AFTER_SNAP}")
+        cam.start(lambda: None)
+        for i in range(a.count):
+            n0 = cam.snap_restarts
+            t0 = time.time()
+            try:
+                arr = cam.snap()
+            except CameraError as e:
+                failed += 1
+                print(f"snap {i + 1}: FAILED after {time.time() - t0:.1f} s  {e}")
+                continue
+            dt = time.time() - t0
+            live, t1 = 0, time.time()
+            while time.time() - t1 < LIVE_AFTER_SNAP_S:   # the live view must keep running after a snap
+                if cam.pull() is not None:
+                    live += 1
+                else:
+                    time.sleep(0.002)
+            print(f"snap {i + 1}: {arr.shape[1]}x{arr.shape[0]} in {dt:.2f} s, stream restarts {cam.snap_restarts - n0}, live frames pulled afterwards: {live}")
+            if not live:
+                failed += 1
+    finally:
+        cam.close()
+    return 1 if failed else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -280,6 +464,16 @@ def main() -> int:
     d.add_argument("--bandwidth", type=int, default=0, help="set the camera's USB bandwidth option to this percent (1-100) first")
     d.add_argument("--exposure-ms", type=float, default=0.0, help="auto exposure off and this fixed exposure (default 0: leave the camera as it is)")
     d.set_defaults(fn=cmd_camdiag)
+    r = sub.add_parser("roitest")
+    r.add_argument("--res", type=int, default=None, help="only this resolution index (default: all, smallest first)")
+    r.add_argument("--exposure-ms", type=float, default=10.0)
+    r.set_defaults(fn=cmd_roitest)
+    t = sub.add_parser("snaptest")
+    t.add_argument("--count", type=int, default=4)
+    t.add_argument("--res", type=int, default=None, help="preview resolution index (default: the smallest, like the app's live view)")
+    t.add_argument("--exposure-ms", type=float, default=10.0)
+    t.add_argument("--no-restart", action="store_true", help="do not restart the stream after each snap (shows the SDK's own behaviour)")
+    t.set_defaults(fn=cmd_snaptest)
     a = ap.parse_args()
     return a.fn(a)
 

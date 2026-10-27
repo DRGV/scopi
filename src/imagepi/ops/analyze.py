@@ -21,9 +21,11 @@ def roi_stats(doc, roi=None) -> dict:
         out["Type"] = kind
         if kind == "line":
             out["Length"] = cal.to_units(roi.length())
+            out["Length (px)"] = roi.length()    # what the calibration was applied to: lets you check the pixel size by hand
             out["Angle"] = roi.angle()
             prof = roi.profile(plane)
-            out.update(Mean=float(prof.mean()), Min=float(prof.min()), Max=float(prof.max()), StdDev=float(prof.std()))
+            out.update(Mean=float(prof.mean()), Min=float(prof.min()), Max=float(prof.max()), StdDev=float(prof.std()),
+                       X=cal.to_units((roi.x0 + roi.x1) / 2), Y=cal.to_units((roi.y0 + roi.y1) / 2))   # the line's midpoint
         elif kind == "angle":
             out["Angle"] = roi.angle()
         elif kind == "point":
@@ -31,6 +33,8 @@ def roi_stats(doc, roi=None) -> dict:
             out.update(X=cal.to_units(roi.x), Y=cal.to_units(roi.y))
             if 0 <= y < plane.shape[0] and 0 <= x < plane.shape[1]:
                 out["Value"] = float(plane[y, x])
+        if kind in ("line", "point"):
+            out["Unit"] = cal.unit
         return out
     mask = roi.mask(plane.shape) if roi is not None else np.ones(plane.shape, bool)
     vals = plane[mask]

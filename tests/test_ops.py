@@ -279,6 +279,24 @@ def test_measure_uses_calibration(session, doc):
     assert run(session, doc, "Analyze>Measure")["Length"] == pytest.approx(25.0)
 
 
+def test_measure_line_fills_in_position_unit_and_pixel_length(session):
+    """Round 4 E1: a line measurement had empty X, Y and Unit columns and no pixel length to check the pixel size against."""
+    from imagepi.core import Calibration, Line
+    d = ImageDoc(np.full((50, 600), 100, np.uint8))
+    d.calibration = Calibration().from_known_distance(200, 0.01, "mm")      # 0.00005 mm per pixel
+    d.set_roi(Line(100, 10, 400, 10))
+    row = run(session, d, "Analyze>Measure")
+    assert row["Length"] == pytest.approx(0.015) and row["Length (px)"] == pytest.approx(300)
+    assert row["X"] == pytest.approx(250 * 0.00005) and row["Y"] == pytest.approx(10 * 0.00005) and row["Unit"] == "mm"
+    from imagepi.core import Point
+    d.set_roi(Point(30, 20))
+    assert run(session, d, "Analyze>Measure")["Unit"] == "mm"
+    d.calibration = Calibration()
+    d.set_roi(Line(0, 0, 3, 4))
+    row = run(session, d, "Analyze>Measure")
+    assert row["Unit"] == "pixel" and row["Length"] == row["Length (px)"] == pytest.approx(5)
+
+
 def test_measure_on_calibration_slide(session):
     """Verification case from the plan: 0.01 mm graduation measured via calibration."""
     from imagepi.core import Calibration, Line

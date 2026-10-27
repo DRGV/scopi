@@ -23,7 +23,7 @@ Reference material (the original Fiji and ImagePy checkouts, the OMAX downloads 
 
 # Implementation Plan
 
-Status: **milestones 1-4 implemented and tested on the dev Mac. Pi 5 bring-up (milestone 0) is in progress: ImagePi installs, launches and runs fast on the Pi 5, and the simulated camera works in the app. The real camera now works on the Pi, from the command line and in the app (round 3): colours are right, hardware crop works, snap saves an ImageJ TIFF and unplugging is handled. It was slow (7.9 fps, 2.9 fps with a slide) because the camera starts in auto exposure with a 350 ms limit, and the live image was mirrored; both are addressed on the Mac and not yet re-tested on the Pi.** Last updated 2026-10-26. See "Implementation status" below for what is and is not verified.
+Status: **milestones 1-4 implemented and tested on the dev Mac. Pi 5 bring-up (milestone 0) is in progress: ImagePi installs, launches and runs fast on the Pi 5, and the simulated camera works in the app. The real camera works on the Pi from the command line and in the app: round 4 (2026-10-27) measured 31.8 / 17.2 / 4.8 fps at a fixed 10 ms exposure (the USB link is fine), the Auto limit box works, and the Gaussian, particle and undo fixes of round 2 passed. Round 4 also found a hardware crop that landed in the vertically mirrored place, a second snap that timed out, an orientation that did not match the eyepiece and a Gaussian slider that showed nothing; those are fixed on the Mac and not yet re-tested on the Pi.** Last updated 2026-10-27. See "Implementation status" below for what is and is not verified.
 
 ## Implementation status
 
@@ -32,7 +32,7 @@ Status: **milestones 1-4 implemented and tested on the dev Mac. Pi 5 bring-up (m
 ```
 python3.13 -m venv .venv && .venv/bin/pip install -e ".[test]"
 .venv/bin/python -m imagepi [image files...]      # or: .venv/bin/imagepi
-.venv/bin/python -m pytest                         # 175 tests (174 pass, 1 skips without the SDK); UI tests run offscreen
+.venv/bin/python -m pytest                         # 193 tests (192 pass, 1 skips without the SDK); UI tests run offscreen
 python scripts/install_toupcam.py references/omax/toupcamsdk.20260818   # camera SDK (folder or zip) -> vendor/toupcam (git-ignored)
 python scripts/install_luts.py references/fiji/luts                     # optional: Fiji LUTs -> ~/.imagepi/luts
 python scripts/make_test_images.py                                      # test images -> ~/imagepi-test (18 MP frame, known shapes)
@@ -82,7 +82,7 @@ Found during the first Pi run (2026-10-22: Pi 5, Python 3.13.5, glibc 2.41, aarc
 
 | Milestone | State | Where |
 |---|---|---|
-| 0 Pi bring-up | **In progress.** Round 1 (2026-10-22): the install script exited silently and `opencv-python` (GUI build) had been installed instead of the headless one; both fixed. Round 2 (2026-10-22/23): install, `pi_bringup.py check`, the then 144-test suite, launch under Wayland, the desktop launcher, 18 MP pan/zoom, the test-image checks and the simulated camera all ran on the Pi (findings fixed, see below). The real camera (`U3CMOS18000KPA`, USB 3, 5000M) enumerates and opens; the first run's `StartPullModeWithCallback` returned `E_BUSY` (0x800700aa; probably the GUI still held the camera, not confirmed) and the next run's first pull failed with `ctypes.ArgumentError` (a `bytearray` frame buffer; fixed). Round 3 (2026-10-26): the camera works in the app and from the command line; fps was exposure-limited and the image mirrored (fixed on the Mac). `references/testsr.txt` re-tests those and Part D before test3's E, F, G. | `scripts/`, `packaging/` |
+| 0 Pi bring-up | **In progress.** Round 1 (2026-10-22): the install script exited silently and `opencv-python` (GUI build) had been installed instead of the headless one; both fixed. Round 2 (2026-10-22/23): install, `pi_bringup.py check`, the then 144-test suite, launch under Wayland, the desktop launcher, 18 MP pan/zoom, the test-image checks and the simulated camera all ran on the Pi (findings fixed, see below). The real camera (`U3CMOS18000KPA`, USB 3, 5000M) enumerates and opens; the first run's `StartPullModeWithCallback` returned `E_BUSY` (0x800700aa; probably the GUI still held the camera, not confirmed) and the next run's first pull failed with `ctypes.ArgumentError` (a `bytearray` frame buffer; fixed). Round 3 (2026-10-26): the camera works in the app and from the command line; fps was exposure-limited and the image mirrored (fixed on the Mac). Round 4 (2026-10-27, `testsr.txt`, 175 tests passed on the Pi): the fixed-exposure fps match the vendor spec, orientation, crop and second-snap bugs found and fixed on the Mac; `test4.txt` re-tests them. | `scripts/`, `packaging/` |
 | 1 MVP | Done. `ImageDoc` (stack, calibration, LUT, ROI, memory-bounded undo), readers/writers (PNG/JPEG/BMP/TIFF/ImageJ-TIFF/OME-TIFF/NPY, 8/16-bit, RGB, stacks, DICOM if `pydicom` is installed), canvas with mip pyramid and vector ROI overlays, 8 ROI tools plus ROI manager, Measure with calibration and scale bar, filters, morphology, thresholds, declarative parameter dialogs with debounced live preview on a crop, macro record/replay/batch, plugin loader. | `src/imagepi/{core,io,ops,ui,plugins}` |
 | 2 Camera | Done against a simulated backend and a fake SDK; the real SDK library loads on macOS. `CameraBackend` ABC, ToupTek backend (pull mode, `PullImageV3`, hotplug, disconnect handling, permission error hint), V4L2/OpenCV fallback, simulated backend (synthetic scene or folder/video replay), live-view panel, snap with metadata, time-lapse, per-objective calibration presets. | `src/imagepi/camera`, `ui/camera_panel.py` |
 | 3 Analysis | Done. Connected components, marker watershed, SLIC, Felzenszwalb, Random Walker; Analyze Particles (size/circularity/edge filters, outlines, summary and density); `regionprops` geometry (area, perimeter, centroid, Feret, ellipse, solidity); area fraction; marker counting; results statistics (summary, filter, group-by); Z-project; extended depth of field; Fiji LUT loader (raw, ICOL, text, float text). | `ops/{analyze,segment,stack}.py`, `core/luts.py` |
@@ -132,12 +132,36 @@ crop; the V4L2 backend probes only `/dev/video*` nodes that exist and silences O
 default (`--exposure-ms`, `--auto-limit-ms`; `camdiag --exposure-ms`) and prints the exposure per resolution. Not yet re-tested on the Pi: all of these, and Part D of test3
 (the particle outlines, summary table, undo, Gaussian slider, 18 MP save) which round 3 did not report. `references/testsr.txt` lists what to run before test3's parts E, F and G.
 
+Round 4 (2026-10-27, `testsr.txt` and part of test3; 175 passed on the Pi in 12 s). USB link: at a fixed 10 ms exposure `pi_bringup.py camera` gave 4.8 fps at 4912x3684, 17.2 at
+2456x1842 and 31.8 at 1228x922 (vendor spec 5.6 / 18.1 / 32.2; `camdiag` 4.3 / 16.7 / 31.9), so `usbfs_memory_mb` 16 is not a limit and test3 Part G is not needed. With the
+auto limit at 100 ms the camera chose 21 ms on the bare stage. In the app: the overlay shows the exposure (it printed `21.052 ms`, now one decimal), Auto limit works (the user
+works with 75 to 150 ms, so 100 stays the default), 32.1 / 17.0 / 4.2 fps without freezing, lag about 0.5 s at 4912x3684 and barely visible at 1228x922 (a frame takes 230 ms
+at full size, so that is the camera's rate, not a bug), Bit depth reads "8-bit only", quitting leaves no `VIDEOIO`/`textinput` lines and the camera is free afterwards.
+Orientation: with no boxes ticked the live image is the paper mirrored left-to-right; the eyepiece shows the paper rotated 180 degrees; ticking Flip vertically alone matches
+the eyepiece. The user wants no ticks to mean the eyepiece view, for a camera mounted with its USB cable pointing to the rear of the microscope. Crop with Flip horizontally ticked
+selected a region shifted upward (`a.png`, `a-cropped.png`, `a.mov`): the selection started at y 196 of 922 and the crop came from about y 42 = 922 - 196 - 684, i.e. the vertically
+mirrored place, with x correct. One model explains both findings: this camera delivers its frames upside down relative to the eyepiece view, and its hardware ROI is given in the
+eyepiece view's coordinates. A second snap in the same live view timed out ("Timed out waiting for still image"), restarting the live view fixed it. Gaussian Blur: "the slider
+produces no change in preview mode". Test3 Part D otherwise passed: outlines easy to see (the user wants colour and width selectable later), Otsu + Analyze Particles as
+expected, Undo across Image > Type > 8-bit restores histogram and Brightness/Contrast, Gaussian sigma 2 on the 18 MP RGB image about 0.5 s, `out.tif` 54,287,808 bytes and
+correct, the simulated camera fine. Speed (`render`, `benchmark.py`), Pi vs round 2: repaint at fit 16.4 ms (was 35.7), pan 15.2 (31.0), zoom sweep 14.1 (23.9); 18 MP gray
+Gaussian 153 ms (658), RGB Gaussian 534 ms (2040), gray median r=3 54 ms, Otsu 106 ms (gray) / 483 ms (RGB); peak RSS 356 / 527 MB; `get_throttled` 0x0. The only `textinput` lines
+left came from `pi_bringup.py render`, which makes its own QApplication (now silenced too). Test3 E1: a 0.5 mm span measured 0.499998 mm (calibrated with 1 mm at 4x), but the line
+row had empty X, Y and Unit columns and no pixel length, so the user could not see the pixel size.
+Fixes (Mac, 193 tests): `CameraBackend.delivered_flip` (the ToupTek is `(False, True)`) and the flips are now relative to the eyepiece view, so no ticks match the eyepiece and the hardware
+crop is mapped in the eyepiece view's coordinates (settings keys renamed `mirror_h`/`mirror_v` so the old saved flips are not reused); `TouptekCamera.snap` restarts the stream after
+each still and once more if a still does not arrive, re-applies the crop, uses the vendor demo's peek call, and its timeout error lists the SDK events seen; the parameter dialog
+throttles its preview instead of debouncing it and the runner shows older preview results when no newer one has arrived; line measurements add X, Y (the midpoint), Unit and
+`Length (px)`; Set Scale reports "Scale: 1 pixel = 0.0025 mm (400 pixels per mm)" in the status line; `pi_bringup.py roitest` measures where a hardware crop lands (template match of
+the crop in the full frame) and `snaptest` repeats snaps, and `render` silences the Wayland text-input line. Not yet re-tested on the Pi: all of these; the orientation model is an inference
+from one crop screenshot and the user's description, `roitest` is how it gets confirmed.
+
 On the dev Mac an 18 MP 8-bit image repaints in about 20 ms (fit, 100%, 25% and 400% zoom) and a 7x7 median takes
 about 33 ms; peak RSS for a 16-bit RGB 18 MP image was about 0.8 GB. These are Mac numbers, not Pi numbers.
 
 **Not verified, and needing the hardware:**
 - On the Pi 5: every fix listed above, the saving of an 18 MP image and the Gaussian time on it, USB 3 throughput and fps at each camera resolution.
-- Any real camera: 16-bit RGB48 pull (the U3CMOS18000KPA has none; it is untestable on it), the flip checkboxes and the hardware crop mapped through a flip, hotplug events, the true fps at each resolution with a short exposure. Verified on the OMAX camera in round 3: frames, RGB byte order, hardware ROI crop, snap, unplug. The mirrored live image is probably the microscope optics, since the SDK output on Linux is top-down and ImagePi sets that option explicitly.
+- Any real camera: 16-bit RGB48 pull (the U3CMOS18000KPA has none; it is untestable on it), hotplug events. Verified on the OMAX camera in rounds 3 and 4: frames, RGB byte order, hardware ROI crop (but not its position: see round 4), snap (a single one), unplug, fps at each resolution with a fixed 10 ms exposure. Not yet verified there: the eyepiece-view orientation model (`delivered_flip`), the crop position with it, repeated snaps, `roitest`/`snaptest`.
 - The `V4L2Camera` fallback and DICOM reading (no device / `pydicom` not installed here).
 - The `imagepi.plugins` entry-point route (folder discovery is tested).
 
@@ -160,6 +184,12 @@ merged, loads as v60.32327.20260818). Run `install_toupcam.py` (see the Mac quic
 - The wrapper looks for `libtoupcam.*` next to `toupcam.py` first; `load_sdk()` copies the right native library there from `vendor/toupcam/<platform>/`.
 - OpenCV 5's `medianBlur` accepts 7x7 on 16-bit/float but OpenCV 4.x only 3x3/5x5; the median filter falls back to threaded SciPy strips on `cv2.error`.
 - ROI shapes are `QGraphicsItem`s with cosmetic pens as planned; the image itself is drawn in `drawBackground` from the display pipeline rather than as a scene item, which is what makes the viewport-only rendering work.
+
+### Later (noted, not scheduled)
+
+- **Window height:** the main window cannot be made shorter than its panels and menus need at start-up (about the combined height of the camera panel, results panel and menus), and closing the results panel only lowers the limit to what the remaining panels need. Let the panels hide part of their content (scroll areas or collapsible groups) when the window is made smaller than the default minimum.
+- **Particle outlines:** let the user choose the outline colour and width (now fixed red, 2 px).
+- Full-size live view runs at about 4 fps (the camera's own rate with RGB conversion on the Pi), so about 0.5 s of lag: use 2456x1842 for focusing; Snap always takes the full size.
 
 ## Decisions
 
@@ -218,7 +248,8 @@ API points that shape the design:
 
 ### Risks not yet verified
 - Whether the first run's `E_BUSY` was only the GUI holding the camera. It did not come back in round 3 (camera idle, nothing else running); if it does, `references/test3.txt` Part G lists the candidates (stale process, `usbfs_memory_mb`, USB power or bandwidth, the 2026-05-19 SDK build).
-- Real Pi 5 USB3 throughput and fps at each camera resolution with a short exposure (round 3 measured under auto exposure, which limited it to about 7.5 fps at the two smaller sizes). `usbfs_memory_mb` is 16; if the fixed-exposure run stays far below the vendor's 18.1 and 32.2 fps, raise it (test3 G2).
+- (Resolved in round 4) Real Pi 5 USB3 throughput: 31.8 / 17.2 / 4.8 fps at a fixed 10 ms exposure against the vendor's 32.2 / 18.1 / 5.6; `usbfs_memory_mb` 16 is no limit. Full size is about 15 % under spec, probably the SDK's RGB conversion on the Pi's CPU.
+- Whether the camera's hardware ROI really is in the eyepiece view's coordinates with frames delivered upside down (inferred from one screenshot; `pi_bringup.py roitest` measures it) and whether restarting the stream is what makes a second snap work (`snaptest --no-restart` shows the SDK's own behaviour).
 - Qt rendering speed under the Pi's Wayland compositor (labwc/Wayfire).
 - aarch64 wheels for opencv-python-headless (the headless 5.0.0.93 aarch64 wheel exists on PyPI; installed and imports on the Pi 5, see "Verified vs. not verified").
 
