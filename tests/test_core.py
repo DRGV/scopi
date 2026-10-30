@@ -80,6 +80,10 @@ def test_line_angle_and_profile():
 
 
 def test_angle_roi():
+    # mouse positions are floats: -(5.0 - 5.0) is -0.0, which showed as an Angle of "-0.0" (and -180 right to left) in the results table
+    assert str(Line(0.0, 5.0, 10.0, 5.0).angle()) == "0.0"
+    assert Line(10.0, 5.0, 0.0, 5.0).angle() == pytest.approx(180)
+    assert Line(0, 5, 10, 0).angle() == pytest.approx(math.degrees(math.atan2(5, 10)))
     assert Angle((10, 0), (0, 0), (0, 10)).angle() == pytest.approx(90)
     assert Angle((10, 0), (0, 0), (10, 10)).angle() == pytest.approx(45)
 

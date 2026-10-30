@@ -6,6 +6,8 @@
 cells_18mp_rgb.tif   4912x3684 RGB 8-bit, a full-resolution camera frame (pan/zoom/filter timing, ~54 MB)
 cells_gray.png       1228x922 8-bit gray, dark cells on a bright field (threshold + particles)
 cells_16bit.tif      1228x922 16-bit gray with a 12-bit range, like the camera's RAW12 (16-bit display and filters)
+cells_stack.tif      600x450 8-bit gray, 3 frames of random noise (std 40) around the means 80, 128 and 176: a stack for "Process entire stack"
+                     (Analyze > Measure gives each frame its StdDev: about 40 raw, about 4 after a Gaussian blur of sigma 3)
 known_shapes.png     800x600 8-bit, bright shapes on a dark background with exactly known sizes:
                      6 squares of 100x100 px (one touches the right and bottom edges) and 3 discs of radius 50 px.
                      Analyze Particles must find 9 objects (8 with "Exclude on edges"); squares are 10000 px.
@@ -51,6 +53,10 @@ def main() -> int:
     small = synthetic_scene(1228, 922)
     Image.fromarray(gray(small)).save(out / "cells_gray.png")
     tifffile.imwrite(out / "cells_16bit.tif", gray(small).astype(np.uint16) * 16)   # 0..4080, a 12-bit range
+
+    rng = np.random.default_rng(5)
+    noise = np.stack([np.clip(rng.normal(mean, 40, (450, 600)), 0, 255) for mean in (80, 128, 176)]).astype(np.uint8)
+    tifffile.imwrite(out / "cells_stack.tif", noise, photometric="minisblack")
 
     shapes, info = known_shapes()
     Image.fromarray(shapes).save(out / "known_shapes.png")

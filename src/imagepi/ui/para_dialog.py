@@ -9,6 +9,9 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
 from ..ops.base import Op, Param
 
 
+SLIDER_MIN_WIDTH = 260   # px. Left to the layout the Gaussian slider was 84 px wide: about 8 steps (0.8 px of sigma) per pixel of mouse travel
+
+
 class _Field:
     """A widget plus getter, built from a Param."""
 
@@ -26,6 +29,7 @@ class _Field:
             if p.unit:
                 self.spin.setSuffix(f" {p.unit}")
             self.slider = QSlider(Qt.Orientation.Horizontal)
+            self.slider.setMinimumWidth(SLIDER_MIN_WIDTH)
             self.slider.setRange(self.spin.minimum(), min(self.spin.maximum(), self.spin.minimum() + 1000)) if hi - lo > 1000 else self.slider.setRange(self.spin.minimum(), self.spin.maximum())
             self.slider.setValue(self.spin.value())
             self.slider.valueChanged.connect(self.spin.setValue)
@@ -48,6 +52,7 @@ class _Field:
             if hi - lo <= 1000:   # a bounded range gets a slider too, handy with the live preview
                 steps = max(min(int(round((hi - lo) * 10 ** p.digits)), 1000), 1)
                 self.slider = QSlider(Qt.Orientation.Horizontal)
+                self.slider.setMinimumWidth(SLIDER_MIN_WIDTH)
                 self.slider.setRange(0, steps)
                 to_pos = lambda v: int(round((v - lo) / (hi - lo) * steps))
                 self.slider.setValue(to_pos(self.spin.value()))
@@ -78,7 +83,7 @@ class _Field:
 
 
 class ParaDialog(QDialog):
-    """Emits ``preview_requested(para)`` (debounced) while the Preview box is checked."""
+    """Emits ``preview_requested(para)`` (throttled to about 4 a second) while the Preview box is checked."""
 
     preview_requested = Signal(dict)
     preview_cleared = Signal()
@@ -122,11 +127,12 @@ class ParaDialog(QDialog):
 
     @property
     def whole_stack(self) -> bool:
-        return self.stack_box.isVisible() and self.stack_box.isChecked()
+        # isVisibleTo(self), not isVisible(): the runner reads this after the dialog has closed, when isVisible() is always False
+        return self.stack_box.isVisibleTo(self) and self.stack_box.isChecked()
 
     def _changed(self) -> None:
-        # Throttle, don't debounce: restarting the timer on every change meant the picture only updated once a dragged
-        # slider paused (round 4: "the slider produces no change in preview mode"). Now it follows at about 4 updates a second.
+        # Throttle, don't debounce: a timer restarted on every change only fires once a dragged slider pauses. This follows a
+        # drag at about 4 updates a second and the last value always gets through (the timer is pending whenever a change arrives).
         if self.preview_box.isChecked() and not self._timer.isActive():
             self._timer.start()
 

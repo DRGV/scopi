@@ -176,6 +176,96 @@ def test_preview_follows_a_dragged_slider_and_older_results_still_show(win, qtbo
     assert canvas._override is None
 
 
+def _drive_dialog(qtbot, steps):
+    """Run ``steps(dlg)`` inside the real modal dialog's event loop (QDialog.exec), the way a user meets it.
+
+    A failure inside the callback would leave the modal dialog open and hang the test run, so the dialog is always closed (unless
+    ``steps`` already did) and the error is re-raised by the returned ``check()``, which the test calls after ``runner.run`` returns."""
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
+    from imagepi.ui.para_dialog import ParaDialog
+
+    errors = []
+
+    def go():
+        dlg = next(w for w in QApplication.topLevelWidgets() if isinstance(w, ParaDialog) and w.isVisible())
+        try:
+            steps(dlg)
+        except BaseException as e:   # noqa: BLE001 - reported by check()
+            errors.append(e)
+        finally:
+            if dlg.isVisible():
+                dlg.reject()
+    QTimer.singleShot(0, go)
+
+    def check():
+        if errors:
+            raise errors[0]
+    return check
+
+
+def _viewport_pixels(canvas):
+    from PySide6.QtGui import QImage
+
+    img = canvas.viewport().grab().toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+    return np.frombuffer(img.constBits(), np.uint8).reshape(img.height(), img.bytesPerLine())[:, :img.width() * 4].astype(np.int16)
+
+
+def test_preview_box_changes_the_picture_through_run(win, qtbot, blobs):
+    """Round 5 (test4 D4): the Gaussian slider 'does nothing' in preview mode. The real cause was not the slider: run() asked
+    ``preview_box.isVisible()`` before the dialog was shown (always False), so the Preview box was never connected to the canvas for
+    any filter. The older tests called ``_preview`` directly and so never saw it. This one goes through run() and a modal exec()."""
+    doc = win.add_doc(ImageDoc(blobs, "a"))
+    canvas = win.current_canvas()
+    qtbot.waitUntil(canvas.isVisible)
+    op = base.REGISTRY["Process>Filters>Gaussian Blur"]()
+    before = _viewport_pixels(canvas)
+    seen = {}
+
+    def shows(sigma):    # the canvas holds exactly the preview the runner computes for this sigma
+        v = canvas.view_rect()
+        expected, _ = compute_preview(op, doc, {"sigma": sigma}, preview_region(doc, (v.left(), v.top(), v.right(), v.bottom())))
+        return canvas._override is not None and np.array_equal(canvas._override[0], expected)
+
+    def steps(dlg):
+        f = dlg._fields["sigma"]
+        dlg.preview_box.setChecked(True)
+        f.slider.setValue(99)                                # a dragged slider: 0.1 + 99 * 0.1 = sigma 10 ...
+        qtbot.waitUntil(lambda: shows(10.0), timeout=10000)
+        qtbot.wait(100)
+        seen["slider"] = np.abs(_viewport_pixels(canvas) - before).mean()
+        f.spin.setValue(25.0)                                # ... and a typed value
+        qtbot.waitUntil(lambda: shows(25.0), timeout=10000)
+        qtbot.wait(100)
+        seen["typed"] = np.abs(_viewport_pixels(canvas) - before).mean()
+        dlg.reject()
+
+    check = _drive_dialog(qtbot, steps)
+    win.runner.run(base.REGISTRY["Process>Filters>Gaussian Blur"])
+    check()
+    assert seen["slider"] > 0.5 and seen["typed"] > 0.5, f"the picture on screen did not change: {seen}"
+    assert canvas._override is None, "cancelling must take the preview away"
+    assert np.array_equal(doc.data[0], blobs)
+
+
+def test_process_entire_stack_is_honoured_by_run(win, qtbot):
+    """whole_stack was read after the dialog closed, where isVisible() is always False, so the box was ignored."""
+    a = np.random.default_rng(0).integers(0, 255, (3, 40, 50), dtype=np.uint8)
+    doc = win.add_doc(ImageDoc(a.copy(), "s", rgb=False))
+
+    def steps(dlg):
+        assert dlg.stack_box.isVisibleTo(dlg)
+        dlg.stack_box.setChecked(True)
+        dlg.accept()
+
+    check = _drive_dialog(qtbot, steps)
+    win.runner.run(base.REGISTRY["Process>Filters>Gaussian Blur"])
+    check()
+    wait_idle(qtbot, win)
+    for i in range(3):
+        assert not np.array_equal(doc.data[i], a[i]), f"frame {i} was not filtered"
+
+
 def test_para_dialog_widgets(qtbot):
     from imagepi.ui.para_dialog import ParaDialog
 

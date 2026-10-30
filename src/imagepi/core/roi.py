@@ -169,7 +169,7 @@ class Line(Roi):
 
     def angle(self) -> float:
         """Degrees, counter-clockwise from +x with y pointing up (ImageJ convention)."""
-        return math.degrees(math.atan2(-(self.y1 - self.y0), self.x1 - self.x0))
+        return math.degrees(math.atan2(self.y0 - self.y1, self.x1 - self.x0))   # not -(y1 - y0): that is -0.0 (and -180) for a level line
 
     def perimeter(self):
         return self.length()
