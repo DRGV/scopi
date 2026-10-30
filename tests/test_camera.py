@@ -11,9 +11,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import numpy as np
 import pytest
 
-from imagepi.camera import CameraError, SimulatedCamera
-from imagepi.camera import touptek
-from imagepi.camera.base import PermissionDenied
+from scopi.camera import CameraError, SimulatedCamera
+from scopi.camera import touptek
+from scopi.camera.base import PermissionDenied
 
 
 def wait_for(cond, timeout=5.0):
@@ -75,8 +75,8 @@ def test_simulated_resolution_only_when_stopped_and_roi():
 
 
 def test_simulated_replay_folder(tmp_path):
-    from imagepi import io
-    from imagepi.core import ImageDoc
+    from scopi import io
+    from scopi.core import ImageDoc
 
     for i in range(3):
         io.save_image(ImageDoc(np.full((20, 30), i * 50, np.uint8)), str(tmp_path / f"{i}.png"))
@@ -100,7 +100,7 @@ def test_simulated_unplug_event():
 
 
 def test_simulated_auto_exposure_steers_to_the_target():
-    from imagepi.camera.simulated import AUTO_EXPOSURE_TARGET
+    from scopi.camera.simulated import AUTO_EXPOSURE_TARGET
 
     cam = SimulatedCamera()
     cam.open()
@@ -653,8 +653,8 @@ def test_real_sdk_loads():
 
 
 def test_calibration_scales_with_resolution():
-    from imagepi.core import Calibration
-    from imagepi.ui.camera_panel import calibration_for_frame
+    from scopi.core import Calibration
+    from scopi.ui.camera_panel import calibration_for_frame
 
     c = calibration_for_frame(Calibration(0.5, "um"), 4912, 1228)
     assert c.pixel_size == pytest.approx(2.0) and c.unit == "um"
@@ -665,9 +665,9 @@ def test_calibration_scales_with_resolution():
 @pytest.fixture
 def win(qtbot, tmp_path, monkeypatch):
     from PySide6.QtCore import QSettings
-    from imagepi.ui.main_window import MainWindow
+    from scopi.ui.main_window import MainWindow
 
-    monkeypatch.setenv("IMAGEPI_PRESETS", str(tmp_path / "presets.json"))
+    monkeypatch.setenv("SCOPI_PRESETS", str(tmp_path / "presets.json"))
     w = MainWindow(settings=QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat))
     qtbot.addWidget(w)
     w.show()
@@ -676,7 +676,7 @@ def win(qtbot, tmp_path, monkeypatch):
 
 def test_live_view_snap_and_disconnect(win, qtbot, monkeypatch):
     from PySide6.QtWidgets import QMessageBox
-    from imagepi.camera import SimulatedCamera
+    from scopi.camera import SimulatedCamera
 
     cp, ctl = win.camera_panel, win.camera
     cp.connect_btn.click()
@@ -701,7 +701,7 @@ def test_live_view_snap_and_disconnect(win, qtbot, monkeypatch):
     assert ctl.live and ctl.backend._bits == 16
     cp.bits_combo.setCurrentIndex(0)
 
-    from imagepi.core import Calibration
+    from scopi.core import Calibration
     cp.presets.add("10x", Calibration(0.5, "um"))
     cp._reload_presets()
     cp.preset_combo.setCurrentText("10x")
@@ -749,8 +749,8 @@ def test_exposure_applies_without_enter_and_follows_auto(win, qtbot):
 
 
 def test_pull_failure_is_reported_once(qtbot):
-    from imagepi.camera import SimulatedCamera
-    from imagepi.ui.camera_panel import CameraController
+    from scopi.camera import SimulatedCamera
+    from scopi.ui.camera_panel import CameraController
 
     class Broken(SimulatedCamera):
         def pull(self):
@@ -782,7 +782,7 @@ def test_timelapse(win, qtbot, tmp_path):
     qtbot.waitUntil(lambda: ctl._timelapse is None, timeout=30000)
     files = sorted((tmp_path / "tl").glob("*.tif"))
     assert len(files) == 3
-    from imagepi import io
+    from scopi import io
     d = io.open_image(str(files[0]))
     assert d.metadata["timelapse_index"] == 0 and d.rgb
     cp.connect_btn.click()
@@ -832,7 +832,7 @@ def test_install_script_handles_folder_and_zip(tmp_path):
 
 # ------------------------------------------------------------------ OpenCV (V4L2) enumeration
 def test_v4l2_probes_only_existing_video_nodes_on_linux(monkeypatch):
-    from imagepi.camera import v4l2
+    from scopi.camera import v4l2
 
     monkeypatch.setattr(v4l2.sys, "platform", "linux")
     monkeypatch.setattr(v4l2.glob, "glob", lambda pat: ["/dev/video7", "/dev/video0", "/dev/video2", "/dev/video-extra"])
@@ -844,7 +844,7 @@ def test_v4l2_probes_only_existing_video_nodes_on_linux(monkeypatch):
 
 def test_v4l2_enumerate_is_quiet_and_restores_the_log_level(monkeypatch):
     import cv2
-    from imagepi.camera import v4l2
+    from scopi.camera import v4l2
 
     seen = []
 
@@ -865,7 +865,7 @@ def test_v4l2_enumerate_is_quiet_and_restores_the_log_level(monkeypatch):
 
 
 def test_v4l2_frames_follow_the_flips():
-    from imagepi.camera.v4l2 import V4L2Camera
+    from scopi.camera.v4l2 import V4L2Camera
 
     cam = V4L2Camera()
     cam.set_flip(True, False)
@@ -926,7 +926,7 @@ def test_a_second_crop_adds_the_first_crops_offset_and_a_new_resolution_clears_i
 
 
 def test_a_camera_without_a_16bit_mode_says_so(win):
-    from imagepi.camera import SimulatedCamera
+    from scopi.camera import SimulatedCamera
 
     class EightBit(SimulatedCamera):
         supports_16bit = False

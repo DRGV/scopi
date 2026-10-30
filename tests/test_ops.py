@@ -4,9 +4,9 @@ from scipy import ndimage as ndi
 from skimage import filters as skf
 from skimage import measure
 
-from imagepi import ops
-from imagepi.core import ImageDoc, Rect, commands
-from imagepi.ops import base
+from scopi import ops
+from scopi.core import ImageDoc, Rect, commands
+from scopi.ops import base
 
 
 def run(session, doc, path, **para):
@@ -21,7 +21,7 @@ def test_registry_and_menu_tree():
 
 @pytest.mark.parametrize("shape,sigma", [((60, 80), 0.3), ((60, 80), 2.0), ((200, 150), 7.5), ((9, 12), 20.0), ((1, 30), 1.0)])
 def test_gaussian_helper_equals_scipy(shape, sigma):
-    from imagepi.ops.filters import gaussian
+    from scopi.ops.filters import gaussian
 
     a = np.random.default_rng(3).random(shape).astype(np.float32) * 1000
     ref = ndi.gaussian_filter(a, sigma, mode="nearest")
@@ -274,21 +274,21 @@ def test_measure_uses_calibration(session, doc):
     doc.set_roi(Rect(0, 0, 10, 10))
     row = run(session, doc, "Analyze>Measure")
     assert row["Area"] == pytest.approx(25.0) and row["Unit"] == "um"
-    from imagepi.core import Line
+    from scopi.core import Line
     doc.set_roi(Line(0, 0, 30, 40))
     assert run(session, doc, "Analyze>Measure")["Length"] == pytest.approx(25.0)
 
 
 def test_measure_line_fills_in_position_unit_and_pixel_length(session):
     """Round 4 E1: a line measurement had empty X, Y and Unit columns and no pixel length to check the pixel size against."""
-    from imagepi.core import Calibration, Line
+    from scopi.core import Calibration, Line
     d = ImageDoc(np.full((50, 600), 100, np.uint8))
     d.calibration = Calibration().from_known_distance(200, 0.01, "mm")      # 0.00005 mm per pixel
     d.set_roi(Line(100, 10, 400, 10))
     row = run(session, d, "Analyze>Measure")
     assert row["Length"] == pytest.approx(0.015) and row["Length (px)"] == pytest.approx(300)
     assert row["X"] == pytest.approx(250 * 0.00005) and row["Y"] == pytest.approx(10 * 0.00005) and row["Unit"] == "mm"
-    from imagepi.core import Point
+    from scopi.core import Point
     d.set_roi(Point(30, 20))
     assert run(session, d, "Analyze>Measure")["Unit"] == "mm"
     d.calibration = Calibration()
@@ -299,7 +299,7 @@ def test_measure_line_fills_in_position_unit_and_pixel_length(session):
 
 def test_measure_on_calibration_slide(session):
     """Verification case from the plan: 0.01 mm graduation measured via calibration."""
-    from imagepi.core import Calibration, Line
+    from scopi.core import Calibration, Line
     d = ImageDoc(np.zeros((50, 600), np.uint8))
     d.calibration = Calibration().from_known_distance(200, 0.01, "mm")
     d.set_roi(Line(0, 10, 400, 10))
@@ -307,7 +307,7 @@ def test_measure_on_calibration_slide(session):
 
 
 def test_measure_point_angle_and_all(session, doc):
-    from imagepi.core import Angle, Point
+    from scopi.core import Angle, Point
     doc.rois = [Point(25, 25), Angle((10, 0), (0, 0), (0, 10))]
     rows = run(session, doc, "Analyze>Measure All ROIs")
     assert rows[0]["Value"] == 200 and rows[1]["Angle"] == pytest.approx(90)
@@ -466,7 +466,7 @@ def test_macro_unknown_command(session, doc):
 
 
 def test_batch(session, tmp_path, blobs):
-    from imagepi import io
+    from scopi import io
     paths = []
     for i in range(2):
         p = tmp_path / f"in{i}.png"
@@ -478,9 +478,9 @@ def test_batch(session, tmp_path, blobs):
 
 
 def test_plugin_loader(tmp_path):
-    from imagepi.plugins import load_all
+    from scopi.plugins import load_all
     (tmp_path / "hello_plg.py").write_text(
-        "from imagepi.ops.base import Filter, register\n"
+        "from scopi.ops.base import Filter, register\n"
         "@register\nclass Halve(Filter):\n    title='Halve'; category='Plugins'\n    def run(self, img, para): return img // 2\n")
     (tmp_path / "broken_plg.py").write_text("raise RuntimeError('boom')\n")
     res = load_all([tmp_path])
@@ -490,7 +490,7 @@ def test_plugin_loader(tmp_path):
 
 
 def test_strip_parallel_matches_single_thread():
-    from imagepi.ops.filters import _strip_parallel
+    from scopi.ops.filters import _strip_parallel
     a = np.random.default_rng(0).integers(0, 4095, (200, 150), dtype=np.uint16)
     f = lambda x: ndi.median_filter(x, size=9, mode="nearest")
     assert np.array_equal(_strip_parallel(f, a, 4, strips=4), f(a))

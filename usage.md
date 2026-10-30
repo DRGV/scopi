@@ -1,20 +1,21 @@
-# Using ImagePi
+# Using Scopi
 
-How to install ImagePi, start it, open images, connect the microscope camera and take measurements. For what the application can do see the
+How to install Scopi, start it, open images, connect the microscope camera and take measurements. For what the application can do see the
 [readme](readme.md); for how it was built and tested see [documents/](documents/README.md).
 
 - [1. What you need](#1-what-you-need)
 - [2. Install on a Raspberry Pi 5](#2-install-on-a-raspberry-pi-5)
 - [3. Install on a Mac or another computer](#3-install-on-a-mac-or-another-computer)
-- [4. Start ImagePi and find your way around](#4-start-imagepi-and-find-your-way-around)
+- [4. Start Scopi and find your way around](#4-start-scopi-and-find-your-way-around)
 - [5. Working with images](#5-working-with-images)
 - [6. Calibrate and measure](#6-calibrate-and-measure)
 - [7. Process and analyse](#7-process-and-analyse)
 - [8. Using the camera](#8-using-the-camera)
-- [9. Where ImagePi keeps things](#9-where-imagepi-keeps-things)
+- [9. Where Scopi keeps things](#9-where-scopi-keeps-things)
 - [10. Helper scripts](#10-helper-scripts)
 - [11. Troubleshooting](#11-troubleshooting)
 - [12. Keyboard shortcuts](#12-keyboard-shortcuts)
+- [13. Upgrading from ImagePi](#13-upgrading-from-imagepi)
 
 ## 1. What you need
 
@@ -36,8 +37,8 @@ Do this as your normal user, **not with `sudo`**, and run the script with **`bas
    ```
 2. Get the code. Use the `dev` branch until it has been merged into `main`:
    ```
-   git clone https://github.com/DRGV/imagepi
-   cd imagepi
+   git clone https://github.com/DRGV/imagepi scopi
+   cd scopi
    git switch dev
    ```
 3. Download the ToupTek camera SDK zip (see section 1) and note where it is, for example `~/Downloads/toupcamsdk.20260519.zip`.
@@ -45,37 +46,37 @@ Do this as your normal user, **not with `sudo`**, and run the script with **`bas
    ```
    bash packaging/install_pi.sh ~/Downloads/toupcamsdk.20260519.zip
    ```
-   It installs the Qt runtime libraries with `apt` (it asks for your password), creates the virtual environment `.venv`, installs ImagePi and everything it
+   It installs the Qt runtime libraries with `apt` (it asks for your password), creates the virtual environment `.venv`, installs Scopi and everything it
    needs, installs the camera SDK into `vendor/toupcam/` and the USB permission rule (`udev`) so a normal user may open the camera, and adds an
-   **ImagePi** entry to the application menu. It is safe to run again if something went wrong half-way. To see what it does step by step:
+   **Scopi** entry to the application menu. It is safe to run again if something went wrong half-way. To see what it does step by step:
    `bash -x packaging/install_pi.sh ...`.
 5. Check the installation:
    ```
    .venv/bin/python scripts/pi_bringup.py check
    ```
    It prints the Python and glibc versions, imports each package (`ok` or `FAIL`) and reports the Qt platform in use (`wayland` on the Pi's own desktop).
-6. Start it from the application menu (**ImagePi**) or from the terminal:
+6. Start it from the application menu (**Scopi**) or from the terminal:
    ```
-   .venv/bin/imagepi
+   .venv/bin/scopi
    ```
-   You can give image files on the command line: `.venv/bin/imagepi cells.tif`.
+   You can give image files on the command line: `.venv/bin/scopi cells.tif`.
 
 Adding the camera SDK later: `.venv/bin/python scripts/install_toupcam.py ~/Downloads/toupcamsdk.20260519.zip --udev`, then unplug and re-plug the camera.
 
 Optional extras:
 - **Test images** (a 54 MB 18 MP picture, a 3-frame stack and shapes whose areas are known exactly): `.venv/bin/python scripts/make_test_images.py` writes them
-  to `~/imagepi-test`.
+  to `~/scopi-test`.
 - **Fiji look-up tables**, if you have a Fiji copy: `.venv/bin/python scripts/install_luts.py /path/to/fiji/luts`.
 - **Run the test suite**: `QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q` (expect every test to pass; one is skipped if the SDK is missing).
 
 ## 3. Install on a Mac or another computer
 
 ```
-git clone https://github.com/DRGV/imagepi
-cd imagepi
+git clone https://github.com/DRGV/imagepi scopi
+cd scopi
 python3.13 -m venv .venv                # Python 3.12 or newer
-.venv/bin/pip install -e ".[test]"      # ImagePi, its dependencies from pyproject.toml, and pytest
-.venv/bin/python -m imagepi             # or: .venv/bin/imagepi [image files...]
+.venv/bin/pip install -e ".[test]"      # Scopi, its dependencies from pyproject.toml, and pytest
+.venv/bin/python -m scopi             # or: .venv/bin/scopi [image files...]
 ```
 
 `pip install -r requirements.txt` followed by `pip install -e .` does the same with the dependency list from [requirements.txt](requirements.txt). Add
@@ -87,10 +88,10 @@ Run the tests with `.venv/bin/python -m pytest` (the Qt tests run without a wind
 Important: install **`opencv-python-headless`**, never `opencv-python`. The GUI build of OpenCV carries its own Qt that stops PySide6 from starting.
 Both provide `import cv2`, so uninstall every OpenCV variant before installing the headless one (`pip uninstall opencv-python opencv-contrib-python`).
 
-## 4. Start ImagePi and find your way around
+## 4. Start Scopi and find your way around
 
 ```
-.venv/bin/imagepi              # or  python -m imagepi  from the project folder, or the ImagePi entry in the application menu
+.venv/bin/scopi              # or  python -m scopi  from the project folder, or the Scopi entry in the application menu
 ```
 
 The window has:
@@ -107,11 +108,11 @@ View > Theme switches between light, dark and automatic; "Touch-friendly Sizing"
 
 ## 5. Working with images
 
-- **Open**: File > Open (Ctrl+O), drag a file onto the window, or File > Open Recent. ImagePi reads PNG, JPEG, BMP, GIF, WebP, TIFF (8- and 16-bit,
+- **Open**: File > Open (Ctrl+O), drag a file onto the window, or File > Open Recent. Scopi reads PNG, JPEG, BMP, GIF, WebP, TIFF (8- and 16-bit,
   colour, stacks, ImageJ and OME-TIFF), NumPy `.npy` and, with `pydicom`, DICOM.
 - **Save**: File > Save As (Ctrl+S). The format follows the extension: `.tif` (the default; an ImageJ-compatible TIFF that keeps the scale, the camera
   settings and the stack), `.png`, `.jpg`, `.bmp`, `.ome.tif` or `.npy`. Use TIFF for anything you want to measure again later.
-- **Close**: Ctrl+W. ImagePi asks "Save changes to ...?" if the image was changed; Discard throws the changes away.
+- **Close**: Ctrl+W. Scopi asks "Save changes to ...?" if the image was changed; Discard throws the changes away.
 - **Zoom and pan**: Ctrl+= and Ctrl+- zoom, Ctrl+1 is actual size, Ctrl+0 fits the window; drag with the middle mouse button, hold Space and drag, or pick the Hand
   tool to pan. Pinch works on a touch screen. Even an 18 MP picture pans and zooms smoothly because only the visible part is drawn.
 - **Brightness and contrast**: the **Brightness / Contrast** panel has the histogram, Min and Max (or **Auto** / **Reset**), a Log view, the look-up table
@@ -197,30 +198,30 @@ blinks for a moment and carries on by itself, so you can snap again straight awa
 
 Take a snap of the stage micrometer with an objective, draw a line along a known distance, use Image > Set Scale and **Save as objective preset** with a name such
 as `10x` (section 6). Repeat for each objective. Then pick the objective in the **Objective** list of the camera panel's **Calibration** group before you snap:
-every snap gets that scale, and measuring in it gives real units. Presets are stored in `~/.imagepi/presets.json`. Measured with the OMAX camera on a
+every snap gets that scale, and measuring in it gives real units. Presets are stored in `~/.scopi/presets.json`. Measured with the OMAX camera on a
 0.01 mm stage micrometer, known spans of 0.2 to 0.5 mm read within about 0.1 % at 4x, 10x and 40x.
 
 ### Time-lapse
 
-In the **Time-lapse** group set the **Interval** (seconds), the number of **Frames** and the **Folder** (default `~/ImagePi-timelapse`), then **Start time-lapse**.
+In the **Time-lapse** group set the **Interval** (seconds), the number of **Frames** and the **Folder** (default `~/Scopi-timelapse`), then **Start time-lapse**.
 Each frame is a full-resolution snap saved there as `timelapse_YYYYMMDD_HHMMSS_NNNN.tif`. The button turns into **Stop time-lapse**; it stops by itself after the
 last frame. A frame is skipped if the previous one is still being captured.
 
 ### Disconnecting
 
-Click **Disconnect**, or just unplug the camera; ImagePi notices and stops the live view. Quit ImagePi before running any camera script.
+Click **Disconnect**, or just unplug the camera; Scopi notices and stops the live view. Quit Scopi before running any camera script.
 
-## 9. Where ImagePi keeps things
+## 9. Where Scopi keeps things
 
 | What | Where |
 |---|---|
-| Camera SDK | `vendor/toupcam/` inside the project (or `~/.imagepi/vendor/toupcam/`, or the folder in `IMAGEPI_TOUPCAM_DIR`) |
-| Objective calibrations | `~/.imagepi/presets.json` (change with `IMAGEPI_PRESETS`) |
-| Look-up tables you add | `~/.imagepi/luts/` (change with `IMAGEPI_LUTS`) |
-| Plugins | `~/.imagepi/plugins/` (files named `*_plg.py`; more folders in `IMAGEPI_PLUGINS`) |
-| Time-lapse pictures | `~/ImagePi-timelapse/` unless you chose another folder |
-| Window layout, theme, recent files, camera flips | Qt settings of "ImagePi" (`~/.config/ImagePi/` on Linux) |
-| Test images | `~/imagepi-test/` (made by `scripts/make_test_images.py`) |
+| Camera SDK | `vendor/toupcam/` inside the project (or `~/.scopi/vendor/toupcam/`, or the folder in `SCOPI_TOUPCAM_DIR`) |
+| Objective calibrations | `~/.scopi/presets.json` (change with `SCOPI_PRESETS`) |
+| Look-up tables you add | `~/.scopi/luts/` (change with `SCOPI_LUTS`) |
+| Plugins | `~/.scopi/plugins/` (files named `*_plg.py`; more folders in `SCOPI_PLUGINS`) |
+| Time-lapse pictures | `~/Scopi-timelapse/` unless you chose another folder |
+| Window layout, theme, recent files, camera flips | Qt settings of "Scopi" (`~/.config/Scopi/` on Linux) |
+| Test images | `~/scopi-test/` (made by `scripts/make_test_images.py`) |
 
 ## 10. Helper scripts
 
@@ -231,10 +232,10 @@ All are run from the project folder with the virtual environment's Python (`.ven
 | `pi_bringup.py check` | Confirms the Raspberry Pi stack: Python and glibc versions, that every package imports, and the Qt platform in use |
 | `pi_bringup.py render` | Times pan and zoom of an 18 MP picture through the real canvas (needs a display) |
 | `pi_bringup.py camera` | Lists USB devices, finds the camera and measures frames per second and USB throughput at each resolution |
-| `pi_bringup.py camdiag` | The same with the vendor SDK only, for telling a camera problem from an ImagePi problem |
+| `pi_bringup.py camdiag` | The same with the vendor SDK only, for telling a camera problem from a Scopi problem |
 | `pi_bringup.py roitest`, `snaptest` | Check where a hardware crop lands and that snaps in a row all arrive |
 | `benchmark.py` | Times the display pipeline and the filters on an 18 MP image |
-| `make_test_images.py` | Writes the test images to `~/imagepi-test` |
+| `make_test_images.py` | Writes the test images to `~/scopi-test` |
 | `install_toupcam.py` | Copies the camera SDK from the vendor's zip or folder into `vendor/toupcam/` (`--udev` also installs the USB rule) |
 | `install_luts.py` | Installs look-up tables from a Fiji copy |
 
@@ -248,13 +249,13 @@ All are run from the project folder with the virtual environment's Python (`.ven
 | Downloads time out | The link is slow. Run the installer again; pip retries and reuses what it already downloaded. |
 | The camera is not in the list | Click **Refresh**. Check it is on a USB 3 port, run `lsusb` (the OMAX camera shows as `0547:3018`), and that the SDK is installed (`vendor/toupcam/`). Re-plug the camera after installing the SDK or the USB rule. |
 | "Permission denied" when connecting | The USB rule is missing: `sudo install -m 644 packaging/99-toupcam.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger`, then re-plug. |
-| The camera is busy or will not start | Another program holds it (a script, a second ImagePi). Close it, then Disconnect and Connect again. |
+| The camera is busy or will not start | Another program holds it (a script, a second Scopi). Close it, then Disconnect and Connect again. |
 | The live view lags | At 4912 x 3684 the camera itself delivers only about 5 frames per second. Focus with 2456 x 1842 or 1228 x 922 and snap at full size. A long **Auto limit** also lowers the frame rate. |
 | The live picture is upside down or mirrored compared with the eyepiece | Use the **Flip horizontally** / **Flip vertically** boxes (section 8). |
 | Measurements are in pixels | The image has no scale: use Image > Set Scale, or choose an **Objective** in the camera panel before snapping. |
 | Ctrl+Z seems to do nothing | Look at the status line: it says "Undo: <step>" or "Nothing to undo". Undo works on the current image tab. |
 | A filter changed only one frame of a stack | "Process entire stack" was not ticked; the status line says "frame N of M only". Undo (Ctrl+Z) and run it again with the box ticked. |
-| Messages such as "Trying to disable ... textinput" in the terminal | Harmless Wayland noise; ImagePi switches that message off. |
+| Messages such as "Trying to disable ... textinput" in the terminal | Harmless Wayland noise; Scopi switches that message off. |
 
 ## 12. Keyboard shortcuts
 
@@ -268,3 +269,25 @@ All are run from the project folder with the virtual environment's Python (`.ven
 | Ctrl+Shift+Z | Redo | Ctrl+1 / Ctrl+0 | Actual size / fit to window |
 | Ctrl+Shift+C | Show the camera panel | Ctrl+Shift+S | Snap |
 | Space + drag | Pan | Shift + drag a line | Snap the line to 45 degree steps |
+
+## 13. Upgrading from ImagePi
+
+Scopi was called **ImagePi** until 2026-10-30. If you installed it under the old name:
+
+1. In your existing clone (the folder name does not matter) pull the new code and run the installer again; it is safe to re-run. It removes the old `imagepi`
+   package and its menu entry and installs Scopi:
+   ```
+   git pull
+   bash packaging/install_pi.sh
+   ```
+   By hand instead: `.venv/bin/pip uninstall -y imagepi && .venv/bin/pip install -e ".[test]"` (the old `imagepi` command stops working). Start it with
+   `.venv/bin/scopi`.
+2. **Your saved data is carried over, not lost.** The first time Scopi starts it copies `~/.imagepi` (objective presets, plugins, look-up tables) to `~/.scopi`
+   and the old Qt settings (theme, window layout, the flips and auto limit of each camera) to the new "Scopi" settings. The old folder and settings are left
+   untouched as a backup; delete `~/.imagepi` (and `~/.config/ImagePi` on Linux) once you are happy. Anything that already exists under the new name wins.
+3. Names that changed and are **not** carried over by themselves:
+   - the environment variables are now `SCOPI_PRESETS`, `SCOPI_LUTS`, `SCOPI_PLUGINS`, `SCOPI_TOUPCAM_DIR` and `SCOPI_VENV` (were `IMAGEPI_...`);
+   - a plugin you wrote must import from `scopi` instead of `imagepi` (`from scopi.ops import Filter, register`); the entry-point group is now `scopi.plugins`;
+   - the time-lapse folder offered by default is `~/Scopi-timelapse` (pictures already in `~/ImagePi-timelapse` stay there), and `scripts/make_test_images.py`
+     writes to `~/scopi-test` (an existing `~/imagepi-test` still works if you give its path);
+   - the GitHub repository and your clone's folder keep their names until you rename them.

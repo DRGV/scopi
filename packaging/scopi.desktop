@@ -1,11 +1,11 @@
 [Desktop Entry]
 Type=Application
-Name=ImagePi
+Name=Scopi
 GenericName=Microscope Imaging
 Comment=View, measure and analyse microscope images; live camera view
-Exec=imagepi %F
-Icon=imagepi
+Exec=scopi %F
+Icon=scopi
 Terminal=false
 Categories=Graphics;Science;Education;
 MimeType=image/png;image/jpeg;image/tiff;image/bmp;
-StartupWMClass=ImagePi
+StartupWMClass=Scopi

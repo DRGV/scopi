@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from imagepi.core import ImageDoc
-from imagepi.core.session import Session
+from scopi.core import ImageDoc
+from scopi.core.session import Session
 
 
 @pytest.fixture

@@ -127,7 +127,7 @@ def load_lut_dir(directory: str | os.PathLike) -> dict[str, np.ndarray]:
 
 
 def user_lut_dir() -> Path:
-    return Path(os.environ.get("IMAGEPI_LUTS", Path.home() / ".imagepi" / "luts"))
+    return Path(os.environ.get("SCOPI_LUTS", Path.home() / ".scopi" / "luts"))
 
 
 def all_luts() -> dict[str, np.ndarray]:

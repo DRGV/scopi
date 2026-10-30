@@ -80,9 +80,9 @@ class MainWindow(QMainWindow):
     def __init__(self, session: Session | None = None, settings: QSettings | None = None):
         super().__init__()
         self.session = session or Session()
-        self.settings = settings or QSettings("ImagePi", "ImagePi")
+        self.settings = settings or QSettings("Scopi", "Scopi")
         self.last_para: dict[str, dict] = {}
-        self.setWindowTitle("ImagePi")
+        self.setWindowTitle("Scopi")
         self.resize(1280, 800)
         self.setAcceptDrops(True)
         self.runner = OpRunner(self)
@@ -242,7 +242,7 @@ class MainWindow(QMainWindow):
             m.addAction(d.toggleViewAction())
 
         m = mb.addMenu("&Help")
-        self._act(m, "About ImagePi", self.about)
+        self._act(m, "About Scopi", self.about)
         self._refresh_recent()
 
     def _build_toolbar(self) -> None:
@@ -338,9 +338,9 @@ class MainWindow(QMainWindow):
         if doc is not None:
             self.session.manager.activate(doc)
             self.zoom_label.setText(f"{v.canvas.scale_factor * 100:.0f}%")
-            self.setWindowTitle(f"ImagePi - {doc.title}")
+            self.setWindowTitle(f"Scopi - {doc.title}")
         else:
-            self.setWindowTitle("ImagePi")
+            self.setWindowTitle("Scopi")
 
     def _close_tab(self, i: int) -> None:
         w = self.tabs.widget(i)
@@ -591,7 +591,7 @@ class MainWindow(QMainWindow):
         theme.apply_theme(QApplication.instance(), self.settings.value("theme", "auto"), on)
 
     def about(self) -> None:
-        QMessageBox.about(self, "ImagePi", "ImagePi\nMicroscope image viewing and processing for the Raspberry Pi 5.")
+        QMessageBox.about(self, "Scopi", "Scopi\nMicroscope image viewing and processing for the Raspberry Pi 5.")
 
     def _restore(self) -> None:
         g = self.settings.value("geometry")

@@ -19,18 +19,21 @@ def main(argv: list[str] | None = None) -> int:
     from PySide6.QtCore import QSettings
     from PySide6.QtWidgets import QApplication
 
+    from .migrate import migrate_settings, migrate_user_dir
     from .plugins import load_all
     from .ui import theme
     from .ui.main_window import MainWindow
 
+    migrate_user_dir()   # Scopi was called ImagePi: carry ~/.imagepi (objective presets, plugins, LUTs) over before anything reads it
     app = QApplication(argv)
-    app.setApplicationName("ImagePi")
-    app.setOrganizationName("ImagePi")
-    settings = QSettings("ImagePi", "ImagePi")
+    app.setApplicationName("Scopi")
+    app.setOrganizationName("Scopi")
+    settings = QSettings("Scopi", "Scopi")
+    migrate_settings(settings)   # ... and the old Qt settings (theme, window layout, camera flips), only while the new ones are empty
     theme.apply_theme(app, settings.value("theme", "auto"), str(settings.value("touch", "false")).lower() == "true")
     res = load_all()
     if res["failed"]:
-        logging.getLogger("imagepi").warning("plugins failed to load: %s", res["failed"])
+        logging.getLogger("scopi").warning("plugins failed to load: %s", res["failed"])
     win = MainWindow(settings=settings)
     win.show()
     for p in argv[1:]:

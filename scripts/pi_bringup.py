@@ -6,11 +6,11 @@
     python scripts/pi_bringup.py camera [--secs 5] [--exposure-ms 10 | --exposure-ms 0 --auto-limit-ms 100]
                                                    # lsusb, enumerate, fps + USB throughput per resolution (fixed short exposure by default)
     python scripts/pi_bringup.py camdiag [--res N] [--bandwidth %] [--exposure-ms MS] [--secs 3]
-                                                   # the vendor SDK only (no ImagePi camera code): USB state, flags, start/pull per resolution
+                                                   # the vendor SDK only (no Scopi camera code): USB state, flags, start/pull per resolution
     python scripts/pi_bringup.py roitest [--res N] [--exposure-ms 10]
                                                    # where does a hardware crop land? compares the cropped frame with the full frame
     python scripts/pi_bringup.py snaptest [--count 4] [--res N] [--no-restart]
-                                                   # several snaps in a row through ImagePi's camera code: does every one arrive?
+                                                   # several snaps in a row through Scopi's camera code: does every one arrive?
 
 Run `render` under Wayland (QT_QPA_PLATFORM=wayland) on the Pi; use QT_QPA_PLATFORM=offscreen elsewhere.
 """
@@ -58,8 +58,8 @@ def cmd_render(a) -> int:
     from PySide6.QtCore import QPointF
     from PySide6.QtWidgets import QApplication
 
-    from imagepi.core import ImageDoc
-    from imagepi.ui.canvas import ImageCanvas
+    from scopi.core import ImageDoc
+    from scopi.ui.canvas import ImageCanvas
 
     app = QApplication(sys.argv)
     rng = np.random.default_rng(0)
@@ -94,8 +94,8 @@ def cmd_camera(a) -> int:
         out = subprocess.run(["lsusb"], capture_output=True, text=True).stdout
         print(out.strip())
         print("ToupTek/OMAX (0547) lines:", [l for l in out.splitlines() if "0547" in l] or "none found")
-    from imagepi.camera.base import CameraError
-    from imagepi.camera.touptek import TouptekCamera
+    from scopi.camera.base import CameraError
+    from scopi.camera.touptek import TouptekCamera
 
     try:
         infos = TouptekCamera.enumerate()
@@ -159,12 +159,12 @@ def cmd_camera(a) -> int:
 
 
 def cmd_camdiag(a) -> int:
-    """Use the vendor SDK directly, step by step, so a failure can be pinned on the camera/USB/SDK rather than on ImagePi."""
+    """Use the vendor SDK directly, step by step, so a failure can be pinned on the camera/USB/SDK rather than on Scopi."""
     import ctypes
     import os
 
-    from imagepi.camera.base import CameraError
-    from imagepi.camera.touptek import _hr, _hr_text, load_sdk
+    from scopi.camera.base import CameraError
+    from scopi.camera.touptek import _hr, _hr_text, load_sdk
 
     try:
         print("usbfs_memory_mb:", open("/sys/module/usbcore/parameters/usbfs_memory_mb").read().strip())
@@ -176,9 +176,9 @@ def cmd_camdiag(a) -> int:
             print(subprocess.run(cmd, capture_output=True, text=True).stdout.rstrip())
     if shutil.which("pgrep"):
         mine = {str(os.getpid()), str(os.getppid())}   # this process and the shell that started it
-        others = [l for l in subprocess.run(["pgrep", "-af", "imagepi|pi_bringup|toupcam"], capture_output=True, text=True).stdout.splitlines()
+        others = [l for l in subprocess.run(["pgrep", "-af", "scopi|pi_bringup|toupcam"], capture_output=True, text=True).stdout.splitlines()
                   if l.split()[0] not in mine and "pgrep" not in l]
-        print("other ImagePi/camera processes:", others or "none")
+        print("other Scopi/camera processes:", others or "none")
 
     try:
         tc = load_sdk()
@@ -323,8 +323,8 @@ def _grab(cam, shape, n=3, timeout=20.0):
 
 
 def _open_first_touptek():
-    from imagepi.camera.base import CameraError
-    from imagepi.camera.touptek import TouptekCamera
+    from scopi.camera.base import CameraError
+    from scopi.camera.touptek import TouptekCamera
 
     try:
         infos = TouptekCamera.enumerate()
@@ -343,10 +343,10 @@ def _open_first_touptek():
 def cmd_roitest(a) -> int:
     """Where does a hardware crop land? Needs a still, textured scene (tissue paper), lamp on, nothing moving.
 
-    Raw frames only (no ImagePi mirroring): for each resolution a full frame, then a crop requested at 15 % / 10 % of the
+    Raw frames only (no Scopi mirroring): for each resolution a full frame, then a crop requested at 15 % / 10 % of the
     frame with 30 % x 30 % size (off-centre on purpose), and a template match of the crop in the full frame.
     """
-    from imagepi.camera.base import CameraError
+    from scopi.camera.base import CameraError
 
     cam, _info = _open_first_touptek()
     if cam is None:
@@ -406,8 +406,8 @@ LIVE_AFTER_SNAP_S = 1.0
 
 
 def cmd_snaptest(a) -> int:
-    """Several snaps in a row through ImagePi's camera backend. Round 4: the second snap of a run never arrived."""
-    from imagepi.camera.base import CameraError
+    """Several snaps in a row through Scopi's camera backend. Round 4: the second snap of a run never arrived."""
+    from scopi.camera.base import CameraError
 
     cam, _info = _open_first_touptek()
     if cam is None:

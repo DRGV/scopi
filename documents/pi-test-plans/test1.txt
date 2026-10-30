@@ -1,3 +1,7 @@
+NOTE (2026-10-30): this plan was written when the application was called ImagePi. Read "imagepi" / "ImagePi" as "scopi" / "Scopi":
+`python -m scopi` (or the `scopi` command), data folder ~/.scopi, environment variables SCOPI_*, test images ~/scopi-test. The Pi's project
+folder (~/Code/imagepi) and the GitHub repository keep their names until they are renamed.
+
 On the Pi: `packaging/install_pi.sh [toupcamsdk.zip]` (apt libs, venv, udev rule, SDK, desktop launcher), then
 `scripts/pi_bringup.py check | render | camera` to do the milestone 0 measurements. `scripts/benchmark.py` times the
 display pipeline and filters on an 18 MP image

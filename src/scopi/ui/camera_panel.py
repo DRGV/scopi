@@ -26,7 +26,7 @@ from .runner import Job, start_job
 
 
 def presets_path() -> Path:
-    return Path(os.environ.get("IMAGEPI_PRESETS", Path.home() / ".imagepi" / "presets.json"))
+    return Path(os.environ.get("SCOPI_PRESETS", Path.home() / ".scopi" / "presets.json"))
 
 
 def load_presets() -> ObjectivePresets:
@@ -530,7 +530,7 @@ class CameraPanel(QWidget):
         self.tl_count = QSpinBox()
         self.tl_count.setRange(1, 100000)
         self.tl_count.setValue(10)
-        self.tl_folder = QPushButton(str(Path.home() / "ImagePi-timelapse"))
+        self.tl_folder = QPushButton(str(Path.home() / "Scopi-timelapse"))
         self.tl_btn = QPushButton("Start time-lapse")
         self.tl_status = QLabel("")
         f.addRow("Interval", self.tl_interval)

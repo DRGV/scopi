@@ -1,6 +1,6 @@
 """ToupTek / OMAX camera backend (OMAX A35180U3 and other ToupTek USB cameras).
 
-Wraps the vendor's single-file ctypes wrapper ``toupcam.py`` which is *not* shipped with ImagePi
+Wraps the vendor's single-file ctypes wrapper ``toupcam.py`` which is *not* shipped with Scopi
 (vendor licence). Run ``scripts/install_toupcam.py`` to populate ``vendor/toupcam/``.
 
 Uses pull mode: the SDK callback only signals; frames are fetched with ``PullImageV3`` by the
@@ -28,11 +28,11 @@ _toupcam = None
 
 def _vendor_dirs() -> list[Path]:
     dirs = []
-    env = os.environ.get("IMAGEPI_TOUPCAM_DIR")
+    env = os.environ.get("SCOPI_TOUPCAM_DIR")
     if env:
         dirs.append(Path(env))
     dirs.append(Path(__file__).resolve().parents[3] / "vendor" / "toupcam")
-    dirs.append(Path.home() / ".imagepi" / "vendor" / "toupcam")
+    dirs.append(Path.home() / ".scopi" / "vendor" / "toupcam")
     return dirs
 
 
@@ -80,7 +80,7 @@ E_PENDING = 0x8000000A
 # HRESULT -> (name, hint). The SDK's raw numbers are opaque, and these end up in the GUI status line.
 _HR_INFO = {
     0x80070005: ("E_ACCESSDENIED", "no permission: install the udev rule and replug the camera"),
-    0x800700AA: ("E_BUSY", "camera already in use (another ImagePi window or program?) or the USB link could not be set up"),
+    0x800700AA: ("E_BUSY", "camera already in use (another Scopi window or program?) or the USB link could not be set up"),
     0x8007001F: ("E_GEN_FAILURE", "device not functioning: check the cable, the USB 3 port and the power supply"),
     0x8007000E: ("E_OUTOFMEMORY", "out of memory (on Linux also the usbfs buffer limit)"),
     0x80070057: ("E_INVALIDARG", "invalid argument"),

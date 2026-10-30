@@ -1,3 +1,7 @@
+NOTE (2026-10-30): this plan was written when the application was called ImagePi. Read "imagepi" / "ImagePi" as "scopi" / "Scopi":
+`python -m scopi` (or the `scopi` command), data folder ~/.scopi, environment variables SCOPI_*, test images ~/scopi-test. The Pi's project
+folder (~/Code/imagepi) and the GitHub repository keep their names until they are renamed.
+
 ImagePi - Pi 5 retest "R" (run this before test3's Parts E, F and G)
 ====================================================================
 

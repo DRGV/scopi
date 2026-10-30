@@ -4,7 +4,7 @@
     python scripts/install_toupcam.py references/omax/toupcamsdk.20260818 [--udev]   # extracted folder
     python scripts/install_toupcam.py references/omax/SDK/toupcamsdk.20230702.zip    # or the zip
 
-Copies only what ImagePi uses: the python wrapper, the header, the Linux (arm64/x64, glibc) and macOS
+Copies only what Scopi uses: the python wrapper, the header, the Linux (arm64/x64, glibc) and macOS
 native libraries, and the udev rule. Both the 2023 layout (linux/arm64/, mac/x64+arm64/) and the 2026
 layout (linux/arm64/glibc/, mac/) are handled. With --udev (Linux, needs sudo) installs the udev rule.
 """

@@ -1,6 +1,6 @@
-"""Plugin discovery: ``imagepi.plugins`` entry points plus ``*_plg.py`` files in plugin folders.
+"""Plugin discovery: ``scopi.plugins`` entry points plus ``*_plg.py`` files in plugin folders.
 
-A plugin module registers ops by importing ``imagepi.ops.register`` and decorating Op subclasses.
+A plugin module registers ops by importing ``scopi.ops.register`` and decorating Op subclasses.
 Import errors are logged and never fatal.
 """
 
@@ -14,14 +14,14 @@ import os
 import sys
 from pathlib import Path
 
-log = logging.getLogger("imagepi.plugins")
+log = logging.getLogger("scopi.plugins")
 
 SUFFIX = "_plg.py"
 
 
 def default_dirs() -> list[Path]:
-    dirs = [Path.home() / ".imagepi" / "plugins"]
-    extra = os.environ.get("IMAGEPI_PLUGINS")
+    dirs = [Path.home() / ".scopi" / "plugins"]
+    extra = os.environ.get("SCOPI_PLUGINS")
     if extra:
         dirs += [Path(p) for p in extra.split(os.pathsep) if p]
     return dirs
@@ -36,7 +36,7 @@ def discover(dirs: list[Path] | None = None) -> list[Path]:
 
 
 def _load_file(path: Path) -> bool:
-    name = f"imagepi_plugin_{path.stem}_{abs(hash(str(path)))}"
+    name = f"scopi_plugin_{path.stem}_{abs(hash(str(path)))}"
     try:
         spec = importlib.util.spec_from_file_location(name, path)
         mod = importlib.util.module_from_spec(spec)
@@ -52,7 +52,7 @@ def _load_file(path: Path) -> bool:
 def load_all(dirs: list[Path] | None = None) -> dict:
     """Load entry-point and folder plugins. Returns {'loaded': [...], 'failed': [...]}."""
     loaded, failed = [], []
-    for ep in importlib.metadata.entry_points(group="imagepi.plugins"):
+    for ep in importlib.metadata.entry_points(group="scopi.plugins"):
         try:
             ep.load()
             loaded.append(ep.name)

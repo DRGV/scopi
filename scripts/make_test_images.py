@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write test images for the GUI checks on the Pi (no camera needed).
 
-    python scripts/make_test_images.py [folder]        # default ~/imagepi-test
+    python scripts/make_test_images.py [folder]        # default ~/scopi-test
 
 cells_18mp_rgb.tif   4912x3684 RGB 8-bit, a full-resolution camera frame (pan/zoom/filter timing, ~54 MB)
 cells_gray.png       1228x922 8-bit gray, dark cells on a bright field (threshold + particles)
@@ -22,7 +22,7 @@ import numpy as np
 import tifffile
 from PIL import Image
 
-from imagepi.camera.simulated import synthetic_scene
+from scopi.camera.simulated import synthetic_scene
 
 SQUARES = [(50, 50), (250, 50), (450, 50), (650, 50), (50, 250), (700, 500)]   # top-left x, y; the last touches the edges
 DISCS = [(300, 300), (500, 300), (700, 300)]                                    # centre x, y
@@ -47,7 +47,7 @@ def gray(rgb: np.ndarray) -> np.ndarray:
 
 
 def main() -> int:
-    out = Path(sys.argv[1] if len(sys.argv) > 1 else "~/imagepi-test").expanduser()
+    out = Path(sys.argv[1] if len(sys.argv) > 1 else "~/scopi-test").expanduser()
     out.mkdir(parents=True, exist_ok=True)
 
     small = synthetic_scene(1228, 922)

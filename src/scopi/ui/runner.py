@@ -214,4 +214,4 @@ class OpRunner(QObject):
         self.busy_changed.emit(on)
 
     def _error(self, msg: str) -> None:
-        QMessageBox.warning(self.window, "ImagePi", msg)
+        QMessageBox.warning(self.window, "Scopi", msg)

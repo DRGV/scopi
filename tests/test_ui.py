@@ -11,11 +11,11 @@ pytest.importorskip("PySide6")
 from PySide6.QtCore import QPointF, QSettings, Qt
 from PySide6.QtTest import QTest
 
-from imagepi import io
-from imagepi.core import ImageDoc, Rect
-from imagepi.ops import base
-from imagepi.ui.main_window import MainWindow
-from imagepi.ui.runner import compute_preview, preview_region
+from scopi import io
+from scopi.core import ImageDoc, Rect
+from scopi.ops import base
+from scopi.ui.main_window import MainWindow
+from scopi.ui.runner import compute_preview, preview_region
 
 
 @pytest.fixture
@@ -123,7 +123,7 @@ def test_filter_error_is_reported_not_raised(win, qtbot, blobs, monkeypatch):
 
 
 def test_dialog_op_with_preview(win, qtbot, blobs, monkeypatch):
-    from imagepi.ui import para_dialog
+    from scopi.ui import para_dialog
 
     doc = win.add_doc(ImageDoc(blobs, "a"))
     canvas = win.current_canvas()
@@ -140,7 +140,7 @@ def test_dialog_op_with_preview(win, qtbot, blobs, monkeypatch):
 def test_preview_follows_a_dragged_slider_and_older_results_still_show(win, qtbot, blobs, monkeypatch):
     """Round 4: 'the slider produces no change in preview mode'. The dialog restarted its timer on every change, so nothing was
     requested until the drag paused; and only the newest request's result was allowed to show, however slow."""
-    from imagepi.ui.para_dialog import ParaDialog
+    from scopi.ui.para_dialog import ParaDialog
 
     op = base.REGISTRY["Process>Filters>Gaussian Blur"]()
     dlg = ParaDialog(op, op.view, can_preview=True, can_stack=False)
@@ -160,7 +160,7 @@ def test_preview_follows_a_dragged_slider_and_older_results_still_show(win, qtbo
     doc = win.add_doc(ImageDoc(blobs, "a"))
     canvas = win.current_canvas()
     jobs = []
-    from imagepi.ui import runner as runner_mod
+    from scopi.ui import runner as runner_mod
     monkeypatch.setattr(runner_mod, "start_job", jobs.append)
     for sigma in (1.0, 2.0, 3.0):
         win.runner._preview(op, doc, canvas, {"sigma": sigma})
@@ -183,7 +183,7 @@ def _drive_dialog(qtbot, steps):
     ``steps`` already did) and the error is re-raised by the returned ``check()``, which the test calls after ``runner.run`` returns."""
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
-    from imagepi.ui.para_dialog import ParaDialog
+    from scopi.ui.para_dialog import ParaDialog
 
     errors = []
 
@@ -267,7 +267,7 @@ def test_process_entire_stack_is_honoured_by_run(win, qtbot):
 
 
 def test_para_dialog_widgets(qtbot):
-    from imagepi.ui.para_dialog import ParaDialog
+    from scopi.ui.para_dialog import ParaDialog
 
     op = base.REGISTRY["Image>Adjust>Local Threshold"]()
     dlg = ParaDialog(op, op.view, can_preview=True, can_stack=True)
@@ -285,7 +285,7 @@ def test_para_dialog_widgets(qtbot):
 
 
 def test_float_params_with_a_bounded_range_get_a_slider(qtbot):
-    from imagepi.ui.para_dialog import ParaDialog
+    from scopi.ui.para_dialog import ParaDialog
 
     op = base.REGISTRY["Process>Filters>Gaussian Blur"]()
     dlg = ParaDialog(op, op.view, can_preview=True, can_stack=False)
@@ -464,7 +464,7 @@ def test_slider_ticks_short_stacks(win, qtbot):
 def test_preview_box_marks_a_partial_preview(win, qtbot):
     """test5 B6: a preview works on a crop of at most 1200 x 1200 px, so on a big picture at Fit only the middle changes. The canvas must
     say so (a frame), but not when the preview covers what is on screen, and not for a 1228 x 922 picture that misses only 13 px strips."""
-    from imagepi.ui.runner import PREVIEW_MAX
+    from scopi.ui.runner import PREVIEW_MAX
 
     big = win.add_doc(ImageDoc(np.random.default_rng(1).integers(0, 255, (2600, 3400), dtype=np.uint8), "big", rgb=False))
     c = win.current_canvas()
@@ -556,9 +556,9 @@ def test_roi_manager(win, qtbot, blobs):
 
 
 def test_calibration_dialog(win, qtbot, blobs, monkeypatch, tmp_path):
-    monkeypatch.setenv("IMAGEPI_PRESETS", str(tmp_path / "p.json"))
-    from imagepi.core import Line
-    from imagepi.ui.dialogs import CalibrationDialog
+    monkeypatch.setenv("SCOPI_PRESETS", str(tmp_path / "p.json"))
+    from scopi.core import Line
+    from scopi.ui.dialogs import CalibrationDialog
 
     doc = ImageDoc(blobs, "a")
     doc.set_roi(Line(0, 0, 200, 0))
@@ -599,7 +599,7 @@ def test_results_panel_shows_particle_summary_and_whole_numbers(win, qtbot, blob
     assert win.results_dock.isVisible() and panel.summary_view.isVisible() and panel.summary_model.rowCount() == 1
     cols = list(panel.summary_model._df.columns)
     assert "Count" in cols and "Total Area" in cols and "%Area" in cols
-    from imagepi.ui.panels import DataFrameModel
+    from scopi.ui.panels import DataFrameModel
     import pandas as pd
 
     m = DataFrameModel(pd.DataFrame({"Area": [10000.0, 81369.0, 1961.25, 0.0719]}))
@@ -645,7 +645,7 @@ def test_menus_cover_registry(win):
 
 def test_theme_and_touch(win, qtbot):
     win.set_theme("dark")
-    from imagepi.ui import theme
+    from scopi.ui import theme
     from PySide6.QtWidgets import QApplication
     assert theme.is_dark(QApplication.instance())
     win.set_touch(True)
@@ -670,7 +670,7 @@ def test_macro_actions(win, qtbot, blobs, tmp_path, monkeypatch):
 
 def test_dark_palette_greys_out_disabled_widgets():
     from PySide6.QtGui import QPalette
-    from imagepi.ui.theme import _dark_palette
+    from scopi.ui.theme import _dark_palette
 
     p = _dark_palette()
     for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText, QPalette.ColorRole.WindowText):
@@ -680,7 +680,7 @@ def test_dark_palette_greys_out_disabled_widgets():
 
 def test_set_scale_reports_the_pixel_size_it_computed(win, monkeypatch, blobs):
     """Round 4 E1: the user could not find the pixel size the calibration had computed."""
-    from imagepi.ui import main_window as mw
+    from scopi.ui import main_window as mw
 
     win.add_doc(ImageDoc(blobs, "a"))
 

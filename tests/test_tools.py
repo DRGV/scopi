@@ -1,7 +1,7 @@
 import pytest
 
-from imagepi.core.roi import Angle, Ellipse, Freehand, Line, Point, Polygon, Rect
-from imagepi.ui.tools import TOOLS, ToolContext
+from scopi.core.roi import Angle, Ellipse, Freehand, Line, Point, Polygon, Rect
+from scopi.ui.tools import TOOLS, ToolContext
 
 
 class Ctx:

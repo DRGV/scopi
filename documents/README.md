@@ -1,21 +1,24 @@
-# ImagePi documents
+# Scopi documents
 
-Material for people who want to understand, test or extend ImagePi. To *use* ImagePi read the [usage guide](../usage.md); for what it can do read the
+Material for people who want to understand, test or extend Scopi. To *use* Scopi read the [usage guide](../usage.md); for what it can do read the
 [readme](../readme.md).
 
 | | |
 |---|---|
-| [implementation.md](implementation.md) | How ImagePi was built and tested: implementation status, what was verified on which machine, design decisions, architecture, milestones, what Fiji / ImagePy / the camera SDK taught us, and the problems found and fixed |
+| [implementation.md](implementation.md) | How Scopi was built and tested: implementation status, what was verified on which machine, design decisions, architecture, milestones, what Fiji / ImagePy / the camera SDK taught us, and the problems found and fixed |
 | [pi-test-plans/](pi-test-plans) | The step-by-step Raspberry Pi 5 test plans (below) |
-| This page | A short guide to extending ImagePi: new operations, plugins, file formats, cameras, tests |
+| This page | A short guide to extending Scopi: new operations, plugins, file formats, cameras, tests |
 
 ## The Raspberry Pi test plans
 
 Each plan is a plain-text checklist for a person sitting at the Pi: what to run, what to expect, and exactly what to send back. They were written one round
 at a time, each starting from what the previous round found, so [implementation.md](implementation.md) is the place to read the findings and these files are the
 places to repeat the checks. They are written for the maintainer's own Pi and camera (user `sch`, the project in `~/Code/imagepi`, test images in
-`~/imagepi-test`) and sometimes name files that are not in the repository, such as the raw result files of earlier rounds; adapt the names to your set-up.
+`~/scopi-test`) and sometimes name files that are not in the repository, such as the raw result files of earlier rounds; adapt the names to your set-up.
 Run `scripts/make_test_images.py` first: several steps use the images it writes.
+
+The plans were written when the application was still called **ImagePi**. Read `imagepi` / `ImagePi` in them as `scopi` / `Scopi`: the command is `python -m scopi`
+(or `scopi`), the data folder `~/.scopi`, the environment variables `SCOPI_*` and the test images `~/scopi-test`. Each plan carries a note saying so.
 
 | Plan | What it covers |
 |---|---|
@@ -31,7 +34,7 @@ Run `scripts/make_test_images.py` first: several steps use the images it writes.
 To test a new Pi, a new release or a different camera, run the plans in order up to the latest and then write the next one the same way (stop at the first
 failure, say exactly what to send back). The automated tests (`python -m pytest`, below) cover everything that does not need the hardware.
 
-## Extending ImagePi
+## Extending Scopi
 
 The code is organised so that the GUI-free parts can be tested without a display: `core/` (image document, selections, calibration, results), `io/`, `ops/` and
 `camera/` know nothing about Qt widgets; `ui/` builds the windows on top of them. [implementation.md](implementation.md) has the architecture and the reasons for
@@ -39,28 +42,28 @@ the choices.
 
 ### Add an operation (a filter, a threshold, an analysis)
 
-An operation is a class that declares its parameters once. ImagePi builds the menu entry, the parameter dialog, the live preview, the "Process entire stack" box
-and the macro recording from that declaration (`src/imagepi/ops/base.py`).
+An operation is a class that declares its parameters once. Scopi builds the menu entry, the parameter dialog, the live preview, the "Process entire stack" box
+and the macro recording from that declaration (`src/scopi/ops/base.py`).
 
 - A **`Filter`** turns a 2-D plane into a plane of the same shape (it is called once per channel of a colour image, and once per frame of a stack). Set `note` to
-  choose what ImagePi offers: `preview`, `stack` (the "Process entire stack" box), `auto_snap` (an undo step) and `auto_msk` (limit to the current selection).
+  choose what Scopi offers: `preview`, `stack` (the "Process entire stack" box), `auto_snap` (an undo step) and `auto_msk` (limit to the current selection).
 - A **`Simple`** operation works on the whole document and can add rows to the Results table (measurements, particle analysis).
 - Parameters are `Int`, `Float`, `Choice`, `Bool` and `Str` entries in `view`, with ranges and defaults. A bounded `Int` or `Float` gets a slider as well as a box.
-- Put built-in operations in the modules of `src/imagepi/ops/` and decorate the class with `@register`. Add a test to `tests/test_ops.py`; the existing tests
+- Put built-in operations in the modules of `src/scopi/ops/` and decorate the class with `@register`. Add a test to `tests/test_ops.py`; the existing tests
   compare filters with SciPy and scikit-image results.
 
-### Add a plugin without touching ImagePi
+### Add a plugin without touching Scopi
 
-Any file named `*_plg.py` in `~/.imagepi/plugins/` (or in a folder listed in the `IMAGEPI_PLUGINS` environment variable) is loaded when ImagePi starts; a package can
-also register an entry point in the group `imagepi.plugins`. A plugin that fails to import is logged and skipped, never fatal. This complete plugin adds
+Any file named `*_plg.py` in `~/.scopi/plugins/` (or in a folder listed in the `SCOPI_PLUGINS` environment variable) is loaded when Scopi starts; a package can
+also register an entry point in the group `scopi.plugins`. A plugin that fails to import is logged and skipped, never fatal. This complete plugin adds
 **Process > Filters > Gamma...** with a slider and a live preview:
 
 ```python
-# ~/.imagepi/plugins/gamma_plg.py
+# ~/.scopi/plugins/gamma_plg.py
 import numpy as np
 
-from imagepi.ops import Filter, register
-from imagepi.ops.base import Float
+from scopi.ops import Filter, register
+from scopi.ops.base import Float
 
 
 @register
@@ -70,17 +73,17 @@ class Gamma(Filter):
 
     def run(self, img, para):
         top = float(np.iinfo(img.dtype).max) if img.dtype.kind in "ui" else float(img.max()) or 1.0
-        return top * (img.astype(np.float32) / top) ** para["gamma"]   # ImagePi casts the result back to the image's own type
+        return top * (img.astype(np.float32) / top) ** para["gamma"]   # Scopi casts the result back to the image's own type
 ```
 
 ### Add a file format
 
-`src/imagepi/io/registry.py` keeps readers and writers by file extension. Decorate a function with `@reader(".ext", ...)` that returns an `ImageDoc`, or with
+`src/scopi/io/registry.py` keeps readers and writers by file extension. Decorate a function with `@reader(".ext", ...)` that returns an `ImageDoc`, or with
 `@writer(".ext", ...)` that saves one (see `readers.py` and `writers.py`), and add a round-trip test to `tests/test_io.py`.
 
 ### Add a camera
 
-Subclass `CameraBackend` (`src/imagepi/camera/base.py`) and implement `enumerate`, `open`, `close`, resolutions, exposure and gain, `start`, `stop`, `pull` and
+Subclass `CameraBackend` (`src/scopi/camera/base.py`) and implement `enumerate`, `open`, `close`, resolutions, exposure and gain, `start`, `stop`, `pull` and
 `snap`; then add it to `available_backends()` in `camera/__init__.py`. `touptek.py` (a wrapper around the vendor's SDK) and `simulated.py` (a synthetic scene,
 or a folder or video replayed as a camera) are the two templates. The base class already does the orientation and hardware-crop mapping, so a new backend only
 declares how its frames arrive relative to the view through the eyepiece. The camera tests drive the ToupTek backend through a fake SDK that is as strict as the
@@ -90,7 +93,7 @@ real wrapper (it rejects the wrong argument types), which found a real bug once:
 
 ```
 .venv/bin/python -m pip install -e ".[test]"
-QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q      # 204 tests, about 15 seconds; the Qt tests run without a window
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q      # 212 tests, about 15 seconds; the Qt tests run without a window
 ```
 
 `tests/test_ui.py` drives the real windows. When you test a dialog, go through the real entry point (`OpRunner.run` with a modal dialog) and not by calling the

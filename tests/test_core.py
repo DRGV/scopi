@@ -3,8 +3,8 @@ import math
 import numpy as np
 import pytest
 
-from imagepi.core import Angle, Calibration, Ellipse, ImageDoc, Line, Point, Polygon, Rect, ResultsTable, roi_from_dict
-from imagepi.core import luts
+from scopi.core import Angle, Calibration, Ellipse, ImageDoc, Line, Point, Polygon, Rect, ResultsTable, roi_from_dict
+from scopi.core import luts
 
 
 def test_imagedoc_shapes():

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install ImagePi on Raspberry Pi OS Trixie (Python 3.13, aarch64).
+# Install Scopi on Raspberry Pi OS Trixie (Python 3.13, aarch64).
 #   bash packaging/install_pi.sh [path/to/toupcamsdk.zip-or-folder]
 # Run it as your normal user, not with sudo: it calls sudo itself for apt and the udev rule, and the
 # venv and launcher must belong to you. Safe to re-run. Use `bash -x packaging/install_pi.sh` to trace it.
@@ -19,7 +19,7 @@ fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SDK_SRC="${1:-}"
-VENV="${IMAGEPI_VENV:-$ROOT/.venv}"
+VENV="${SCOPI_VENV:-$ROOT/.venv}"
 PY="$VENV/bin/python"
 PIP_OPTS=(--retries 10 --timeout 60)   # the big PySide6/OpenCV wheels can stall on a slow link
 
@@ -49,7 +49,7 @@ python3 -m venv "$VENV"
 "$PY" -m pip install "${PIP_OPTS[@]}" --upgrade pip
 
 # opencv-python (the GUI build) bundles its own Qt 5 and points QT_QPA_PLATFORM_PLUGIN_PATH at it, which stops
-# PySide6 from loading its platform plugin. ImagePi needs opencv-python-headless; both provide `cv2`, so remove
+# PySide6 from loading its platform plugin. Scopi needs opencv-python-headless; both provide `cv2`, so remove
 # every OpenCV variant first and let the install below bring back the headless one.
 for gui_cv in opencv-python opencv-contrib-python; do
   if "$PY" -m pip show "$gui_cv" >/dev/null 2>&1; then
@@ -59,7 +59,12 @@ for gui_cv in opencv-python opencv-contrib-python; do
   fi
 done
 
-say "Installing ImagePi and its Python dependencies (large downloads; can take several minutes)"
+# Scopi was called ImagePi until 2026-10-30. An older install left an editable package named imagepi (its `imagepi` command would point at
+# a folder that no longer exists), so remove it; the new install below replaces it. Nothing of yours is touched: presets and settings are
+# copied to the new names the first time Scopi starts.
+"$PY" -m pip uninstall -y imagepi >/dev/null 2>&1 || true
+
+say "Installing Scopi and its Python dependencies (large downloads; can take several minutes)"
 "$PY" -m pip install "${PIP_OPTS[@]}" -e "$ROOT[test]"
 
 if [ -n "$SDK_SRC" ]; then
@@ -84,11 +89,12 @@ fi
 
 say "Installing the desktop launcher"
 mkdir -p "$HOME/.local/share/applications"
-sed "s|^Exec=.*|Exec=$VENV/bin/imagepi %F|" "$ROOT/packaging/imagepi.desktop" > "$HOME/.local/share/applications/imagepi.desktop"
+rm -f "$HOME/.local/share/applications/imagepi.desktop"   # the menu entry of the old name (its command no longer exists)
+sed "s|^Exec=.*|Exec=$VENV/bin/scopi %F|" "$ROOT/packaging/scopi.desktop" > "$HOME/.local/share/applications/scopi.desktop"
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$HOME/.local/share/applications" || true
 fi
 
 say "Done"
-echo "Launch with: $VENV/bin/imagepi   (or from the application menu)"
+echo "Launch with: $VENV/bin/scopi   (or from the application menu)"
 echo "Verify with: $PY $ROOT/scripts/pi_bringup.py check"

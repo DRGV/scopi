@@ -1,17 +1,19 @@
-# ImagePi
+# Scopi
+
+*(Scopi was called ImagePi until 2026-10-30; see [Upgrading from ImagePi](usage.md#13-upgrading-from-imagepi).)*
 
 **Microscope image viewing, measurement and analysis for the Raspberry Pi 5, with live view and snaps from a USB microscope camera.**
 
-ImagePi is a stand-alone Python application (Qt, via PySide6) modelled on **[ImageJ](https://imagej.net/ij/) and [Fiji](https://imagej.net/software/fiji/)**.
+Scopi is a stand-alone Python application (Qt, via PySide6) modelled on **[ImageJ](https://imagej.net/ij/) and [Fiji](https://imagej.net/software/fiji/)**.
 It gives a classroom or a bench the familiar ImageJ way of working (open a picture, draw a selection, set the scale, measure, filter, threshold, count particles)
 on a Raspberry Pi 5 with the **OMAX 18 MP USB 3.0 C-mount microscope camera (model A35180U3)** attached. It also runs on a Mac or any Linux
 computer for viewing and processing pictures.
 
-- **[usage.md](usage.md)**: installation, starting ImagePi, adding the camera, live view versus snaps, calibration, troubleshooting
+- **[usage.md](usage.md)**: installation, starting Scopi, adding the camera, live view versus snaps, calibration, troubleshooting
 - **[requirements.txt](requirements.txt)**: the Python packages it needs
 - **[documents/](documents/README.md)**: implementation notes, design decisions, test history and how to extend the project
 
-## What ImagePi can do
+## What Scopi can do
 
 ### View and manage images
 - Opens PNG, JPEG, BMP, GIF, WebP, TIFF (8-bit and 16-bit grey, colour, multi-frame stacks, ImageJ TIFF and OME-TIFF), NumPy `.npy` files and, with the optional
@@ -44,8 +46,8 @@ computer for viewing and processing pictures.
 
 ### Automate and extend
 - A macro recorder that logs every step as text, replays it and runs it over many files. Plugins are single Python files (`*_plg.py`) dropped into
-  `~/.imagepi/plugins`, or packages that register an entry point.
-- Each operation declares its parameters once; ImagePi builds the dialog, the live preview and the macro recording from that declaration.
+  `~/.scopi/plugins`, or packages that register an entry point.
+- Each operation declares its parameters once; Scopi builds the dialog, the live preview and the macro recording from that declaration.
 
 ### Microscope camera
 - Connects to the ToupTek-based **OMAX A35180U3** (4912 x 3684, 1.25 um pixels) through the vendor's SDK, with a fallback for ordinary USB (V4L2) cameras and a
@@ -63,7 +65,7 @@ computer for viewing and processing pictures.
 | Camera | OMAX 18 MP USB 3.0 C-mount camera A35180U3 (ToupTek `U3CMOS18000KPA`): **the only camera tested** |
 | Calibration | Checked with a 0.01 mm stage micrometer at 4x, 10x and 40x: known distances of 0.2 to 0.5 mm read within about 0.1 % |
 | Development | macOS (Apple silicon), Python 3.13 |
-| Automated tests | 204 tests (`pytest`), all passing on both the Mac and the Pi; the Qt tests run without a display |
+| Automated tests | 212 tests (`pytest`), all passing on the Mac; the Qt tests run without a display. The 204 that existed before the rename to Scopi all passed on the Pi; the rename itself has not been run there yet |
 | Not tested | The V4L2 fallback camera and DICOM files (no device and no `pydicom` on the test machines) |
 
 The history of what was tested, found and fixed on the Pi is in [documents/implementation.md](documents/implementation.md).
@@ -71,9 +73,9 @@ The history of what was tested, found and fixed on the Pi is in [documents/imple
 ## Getting started
 
 ```
-git clone https://github.com/DRGV/imagepi && cd imagepi && git switch dev     # dev until it is merged into main
+git clone https://github.com/DRGV/imagepi scopi && cd scopi && git switch dev     # dev until it is merged into main
 bash packaging/install_pi.sh /path/to/toupcamsdk.zip                           # Raspberry Pi 5; see usage.md for a Mac or no camera
-.venv/bin/imagepi
+.venv/bin/scopi
 ```
 
 [usage.md](usage.md) explains all of this step by step, including how to add the camera, take a snap, calibrate an objective and fix common problems.
@@ -82,7 +84,7 @@ bash packaging/install_pi.sh /path/to/toupcamsdk.zip                           #
 
 | Folder or file | Contents |
 |---|---|
-| `src/imagepi/` | The application: `core` (image, selections, calibration, results), `io` (file formats), `ops` (filters, morphology, thresholds, segmentation, analysis), `camera` (ToupTek, V4L2, simulated), `ui` (windows, canvas, panels, camera panel), `plugins` |
+| `src/scopi/` | The application: `core` (image, selections, calibration, results), `io` (file formats), `ops` (filters, morphology, thresholds, segmentation, analysis), `camera` (ToupTek, V4L2, simulated), `ui` (windows, canvas, panels, camera panel), `plugins` |
 | `tests/` | The automated tests (`pytest`) |
 | `scripts/` | Helpers: Pi bring-up and diagnostics, benchmark, test images, camera SDK and LUT installers |
 | `packaging/` | Raspberry Pi installer, desktop launcher, USB permission rule for the camera |
@@ -92,12 +94,12 @@ bash packaging/install_pi.sh /path/to/toupcamsdk.zip                           #
 
 ## Thanks
 
-ImagePi would not exist without **ImageJ** and **Fiji**, and it is a thank-you to the people who made them.
+Scopi would not exist without **ImageJ** and **Fiji**, and it is a thank-you to the people who made them.
 
 **ImageJ** was created by Wayne Rasband at the US National Institutes of Health and has been shaped for decades by its users and plugin authors. It taught
 a generation of scientists and students how to measure a picture. **Fiji** ("Fiji Is Just ImageJ"), built by a community of developers, turned it into the
 batteries-included platform that many laboratories rely on. The menus, the selection tools, the way *Set Scale*, *Measure*, *Analyze Particles*, *Threshold*
-and the Results table work, and the idea of macros and plugins all come from them. ImagePi re-implements these ideas in Python from ImageJ's published
+and the Results table work, and the idea of macros and plugins all come from them. Scopi re-implements these ideas in Python from ImageJ's published
 documentation so that they run well on a Raspberry Pi; **no ImageJ or Fiji code is used or included**.
 
 If you use ImageJ or Fiji in your work, please cite them:
@@ -110,16 +112,16 @@ If you use ImageJ or Fiji in your work, please cite them:
 Projects: [ImageJ](https://imagej.net/ij/), [Fiji](https://imagej.net/software/fiji/), [Fiji source](https://github.com/fiji/fiji).
 
 Also thanks to **[ImagePy](https://github.com/Image-Py/imagepy)** (Python, BSD-style license), an earlier attempt at an ImageJ-like application in Python. Its design
-ideas (parameter dialogs generated from a declaration, macro recording, plugin discovery by file name) inspired parts of ImagePi; no ImagePy code was copied.
+ideas (parameter dialogs generated from a declaration, macro recording, plugin discovery by file name) inspired parts of Scopi; no ImagePy code was copied.
 
 And to **ToupTek** and **OMAX** for the camera and its SDK, and to the authors and maintainers of every package listed below.
 
-## Open-source software ImagePi uses
+## Open-source software Scopi uses
 
 None of these is bundled in the repository: `pip` installs them from PyPI under their own licenses (see [requirements.txt](requirements.txt)). The licenses
 below are the ones the installed packages declare; please read each project's own license text before redistributing anything.
 
-| Package | What ImagePi uses it for | License | Project |
+| Package | What Scopi uses it for | License | Project |
 |---|---|---|---|
 | Qt for Python: **PySide6-Essentials**, Shiboken6 (Qt 6) | The whole user interface | LGPL-3.0, GPL-2.0 or GPL-3.0 (or a commercial license from Qt) | [qt.io/qt-for-python](https://www.qt.io/qt-for-python) |
 | **NumPy** | Image arrays and numeric work | BSD-3-Clause | [numpy.org](https://numpy.org) |
@@ -139,11 +141,11 @@ below are the ones the installed packages declare; please read each project's ow
 
 The **ToupTek camera SDK** (`toupcam`, a vendor library plus its Python wrapper) is proprietary software under the vendor's own terms. It is **not** part of this
 repository and must not be committed to it: `vendor/` is git-ignored. Each user downloads the SDK from the vendor
-([OMAX software page](https://omaxmicroscope.com/pages/software-download), or ToupTek) and installs it with `scripts/install_toupcam.py`. ImagePi loads its
-shared library at run time. Without it, ImagePi works as an image viewer and analysis tool, and the simulated camera is still available. OMAX's own
+([OMAX software page](https://omaxmicroscope.com/pages/software-download), or ToupTek) and installs it with `scripts/install_toupcam.py`. Scopi loads its
+shared library at run time. Without it, Scopi works as an image viewer and analysis tool, and the simulated camera is still available. OMAX's own
 ToupLite program (an x86-64 installer on the same page) is not needed and does not run on a Raspberry Pi.
 
 ## License
 
-ImagePi's own license has **not been chosen yet**: there is no `LICENSE` file in the repository, so for now the code is not licensed for reuse. If you want to
-use or build on it, please contact the repository owner (GitHub user `DRGV`). The third-party licenses above apply to the packages named there, not to ImagePi.
+Scopi's own license has **not been chosen yet**: there is no `LICENSE` file in the repository, so for now the code is not licensed for reuse. If you want to
+use or build on it, please contact the repository owner (GitHub user `DRGV`). The third-party licenses above apply to the packages named there, not to Scopi.

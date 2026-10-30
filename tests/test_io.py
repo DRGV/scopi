@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from imagepi import io
-from imagepi.core import Calibration, ImageDoc
+from scopi import io
+from scopi.core import Calibration, ImageDoc
 
 
 @pytest.mark.parametrize("ext", [".png", ".tif", ".bmp", ".npy"])

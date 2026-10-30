@@ -16,9 +16,9 @@ import time
 
 import numpy as np
 
-from imagepi.core import ImageDoc, luts
-from imagepi.ops import base
-from imagepi.ui.render import DisplayPipeline
+from scopi.core import ImageDoc, luts
+from scopi.ops import base
+from scopi.ui.render import DisplayPipeline
 
 
 def timed(label, fn, n=5):

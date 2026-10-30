@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "imagepi"
+name = "scopi"
 version = "0.1.0"
 description = "Microscope image viewing and processing for Raspberry Pi 5"
 requires-python = ">=3.12"
@@ -25,9 +25,9 @@ dicom = ["pydicom"]
 test = ["pytest", "pytest-qt"]
 
 [project.scripts]
-imagepi = "imagepi.app:main"
+scopi = "scopi.app:main"
 
-[project.entry-points."imagepi.plugins"]
+[project.entry-points."scopi.plugins"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

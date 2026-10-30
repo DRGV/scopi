@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from imagepi.core import luts
-from imagepi.ui.render import DisplayPipeline, histogram, value_at
+from scopi.core import luts
+from scopi.ui.render import DisplayPipeline, histogram, value_at
 
 
 def render(plane, view, size, rng=(0, 255), lut=None, **kw):
@@ -79,8 +79,8 @@ def test_int32_plane_supported():
 
 
 def test_window_matches_the_plain_numpy_reference():
-    from imagepi.core import luts
-    from imagepi.ui.render import DisplayPipeline
+    from scopi.core import luts
+    from scopi.ui.render import DisplayPipeline
 
     rng = np.random.default_rng(1)
     g8 = rng.integers(0, 256, (37, 53), dtype=np.uint8)
@@ -107,7 +107,7 @@ def test_label_outlines():
     lab = np.zeros((20, 20), np.int32)
     lab[5:15, 5:15] = 1
     out = render(a, (0, 0, 20, 20), (20, 20), labels=lab)
-    from imagepi.ui.render import OUTLINE
+    from scopi.ui.render import OUTLINE
 
     assert out[5, 8].tolist() == list(OUTLINE) and out[10, 10, 0] == 100 and out[0, 0, 0] == 100
 

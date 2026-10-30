@@ -1,8 +1,8 @@
-# ImagePi runtime dependencies. This is the same list as `dependencies` in pyproject.toml.
+# Scopi runtime dependencies. This is the same list as `dependencies` in pyproject.toml.
 #
 #   python3.13 -m venv .venv
 #   .venv/bin/pip install -r requirements.txt
-#   .venv/bin/pip install -e .          # then ImagePi itself:  .venv/bin/imagepi
+#   .venv/bin/pip install -e .          # then Scopi itself:  .venv/bin/scopi
 #
 # Needs Python 3.12 or newer (3.13 is what the Raspberry Pi 5 runs). On the Pi, `bash packaging/install_pi.sh` does all of this for you (see usage.md).
 # On Linux the PySide6 wheels need glibc 2.39 or newer: Raspberry Pi OS Trixie, not Bookworm.
@@ -26,7 +26,7 @@ imageio
 pandas
 matplotlib
 
-# Qt for Python (the Essentials package is enough; the full PySide6 pulls in far more than ImagePi uses)
+# Qt for Python (the Essentials package is enough; the full PySide6 pulls in far more than Scopi uses)
 PySide6-Essentials
 
 # Optional:

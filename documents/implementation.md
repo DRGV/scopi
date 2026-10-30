@@ -1,9 +1,12 @@
-# ImagePi: implementation notes and reference material
+# Scopi: implementation notes and reference material
 
-This is the maintainer's record of how ImagePi was built and tested: the implementation status, what was verified on which machine, the design
+This is the maintainer's record of how Scopi was built and tested: the implementation status, what was verified on which machine, the design
 decisions, the architecture, the milestones, what the reference material (Fiji, ImagePy, the camera SDK) taught us and the problems found along the
 way. It is meant for anyone who wants to understand the code base or extend it. To see what the application can do read the [readme](../readme.md);
 to install and use it read the [usage guide](../usage.md).
+
+Naming: Scopi was called **ImagePi** until 2026-10-30. This record was written under the old name and keeps it where it describes what happened in the test rounds
+(the plans in `pi-test-plans/` still say `imagepi`: read it as `scopi`); module paths, commands and data folders below use the current names.
 
 Where the files mentioned below live:
 
@@ -15,14 +18,14 @@ Where the files mentioned below live:
 
 ## Implementation plan
 
-Status: **milestones 1-4 implemented and tested on the dev Mac. Pi 5 bring-up (milestone 0) is in progress: ImagePi installs, launches and runs fast on the Pi 5, and the simulated camera works in the app. The real camera works on the Pi from the command line and in the app. Round 5 (2026-10-30, `test4.txt`) confirmed the orientation model: with no Flip box ticked the live view matches the eyepiece, crops land exactly on the selection with every combination of the Flip boxes, snaps in a row work, line measurements agree with three calibrated objectives to about 0.1 % or better, and the camera's hardware crop was measured to land in the vertically mirrored place, as modelled. Round 5 also found that the Preview box of every filter dialog did nothing in the real app (not just the Gaussian slider): fixed in round 6 (2026-10-30, `test5.txt`): the Preview box now works on the Pi (slider, typed values, Median, Auto Threshold, an 18 MP image without freezing) and "Process entire stack" filters a whole stack. Round 6 also found a frame slider that could not stop on frame 2 and a level Shift-drag line that read 180 or -180; both, a frame around the previewed area and status-line feedback on what a filter or Undo did were fixed and verified on the Pi in round 7 (2026-10-30, `test6.txt`). The one unit test that failed on the Pi (the frame slider click check, a flaw in the test, not in the app) passes after the test was fixed: all 204 tests pass on the Pi.** Last updated 2026-10-30. See "Implementation status" below for what is and is not verified.
+Status: **milestones 1-4 implemented and tested on the dev Mac. Pi 5 bring-up (milestone 0) is in progress: Scopi installs, launches and runs fast on the Pi 5, and the simulated camera works in the app. The real camera works on the Pi from the command line and in the app. Round 5 (2026-10-30, `test4.txt`) confirmed the orientation model: with no Flip box ticked the live view matches the eyepiece, crops land exactly on the selection with every combination of the Flip boxes, snaps in a row work, line measurements agree with three calibrated objectives to about 0.1 % or better, and the camera's hardware crop was measured to land in the vertically mirrored place, as modelled. Round 5 also found that the Preview box of every filter dialog did nothing in the real app (not just the Gaussian slider): fixed in round 6 (2026-10-30, `test5.txt`): the Preview box now works on the Pi (slider, typed values, Median, Auto Threshold, an 18 MP image without freezing) and "Process entire stack" filters a whole stack. Round 6 also found a frame slider that could not stop on frame 2 and a level Shift-drag line that read 180 or -180; both, a frame around the previewed area and status-line feedback on what a filter or Undo did were fixed and verified on the Pi in round 7 (2026-10-30, `test6.txt`). The one unit test that failed on the Pi (the frame slider click check, a flaw in the test, not in the app) passes after the test was fixed: all 204 tests pass on the Pi.** Last updated 2026-10-30. See "Implementation status" below for what is and is not verified.
 
 ## Implementation status
 
 ### Installing and running
 
 Moved to the [usage guide](../usage.md) (install on a Mac or a Raspberry Pi 5, add the camera, live view and snaps). In short, on the Pi:
-`bash packaging/install_pi.sh /path/to/toupcamsdk.zip` installs the Qt runtime libraries with apt, builds `.venv`, installs ImagePi with its dependencies and
+`bash packaging/install_pi.sh /path/to/toupcamsdk.zip` installs the Qt runtime libraries with apt, builds `.venv`, installs Scopi with its dependencies and
 the `test` extra, installs the SDK and udev rule, and writes the desktop launcher. It is safe to re-run. The step-by-step Pi test plans are in `pi-test-plans/`
 (`test1.txt`, `test2.txt`, ...).
 
@@ -34,13 +37,13 @@ Found during the first Pi run (2026-10-22: Pi 5, Python 3.13.5, glibc 2.41, aarc
 
   | `import` | `pip install` |
   |---|---|
-  | `cv2` | `opencv-python-headless` (ImagePi's dependency; not `cv2`, not `sv2`) |
+  | `cv2` | `opencv-python-headless` (Scopi's dependency; not `cv2`, not `sv2`) |
   | `skimage` | `scikit-image` |
   | `PIL` | `pillow` |
 
   `sv2` on PyPI is an unrelated project (a typo for `cv2`) and does not build here; if it is in the venv, `pip uninstall sv2`.
 - **Use `opencv-python-headless`, not `opencv-python`.** The GUI wheel (5.0.0.93, checked) bundles its own Qt 5 in `cv2/qt/`,
-  which has only an xcb plugin, and `cv2/config-3.py` points `QT_QPA_PLATFORM_PLUGIN_PATH` at it on import. ImagePi imports
+  which has only an xcb plugin, and `cv2/config-3.py` points `QT_QPA_PLATFORM_PLUGIN_PATH` at it on import. Scopi imports
   `cv2` before it creates the `QApplication`, so PySide6 then cannot find its own (Wayland or xcb) platform plugin. Both wheels
   provide `cv2`, so uninstall every OpenCV variant before installing the headless one. `install_pi.sh` now does this.
 - **Run `install_pi.sh` with bash as your own user.** `sh` is dash on the Pi, not bash, and `sudo bash ...` leaves a root-owned
@@ -49,7 +52,7 @@ Found during the first Pi run (2026-10-22: Pi 5, Python 3.13.5, glibc 2.41, aarc
   Trace a failing run with `bash -x packaging/install_pi.sh`.
 - **The link can be slow.** PySide6 (about 260 MB of wheels), OpenCV and matplotlib took minutes and one download timed out; pip
   now runs with `--retries 10 --timeout 60`, and a re-run reuses the pip cache.
-- **Keep the venv to ImagePi's dependencies.** An editor such as ReText in the same venv pulls in PyQt6 beside PySide6.
+- **Keep the venv to Scopi's dependencies.** An editor such as ReText in the same venv pulls in PyQt6 beside PySide6.
 - `vendor/` is wholly git-ignored: it holds the SDK zips, a partial download and the extracted `vendor/toupcam/`.
 
 ### What exists
@@ -57,8 +60,8 @@ Found during the first Pi run (2026-10-22: Pi 5, Python 3.13.5, glibc 2.41, aarc
 | Milestone | State | Where |
 |---|---|---|
 | 0 Pi bring-up | **In progress.** Round 1 (2026-10-22): the install script exited silently and `opencv-python` (GUI build) had been installed instead of the headless one; both fixed. Round 2 (2026-10-22/23): install, `pi_bringup.py check`, the then 144-test suite, launch under Wayland, the desktop launcher, 18 MP pan/zoom, the test-image checks and the simulated camera all ran on the Pi (findings fixed, see below). The real camera (`U3CMOS18000KPA`, USB 3, 5000M) enumerates and opens; the first run's `StartPullModeWithCallback` returned `E_BUSY` (0x800700aa; probably the GUI still held the camera, not confirmed) and the next run's first pull failed with `ctypes.ArgumentError` (a `bytearray` frame buffer; fixed). Round 3 (2026-10-26): the camera works in the app and from the command line; fps was exposure-limited and the image mirrored (fixed on the Mac). Round 4 (2026-10-27, `testsr.txt`, 175 tests passed on the Pi): the fixed-exposure fps match the vendor spec, orientation, crop and second-snap bugs found and fixed on the Mac. Round 5 (2026-10-30, `test4.txt`, 193 tests passed on the Pi): those fixes verified on the camera (orientation, crop, snaps, line measurements, calibration at 4X/10X/40X); the Preview box of the filter dialogs found dead and fixed on the Mac. Round 6 (2026-10-30, `test5.txt`, 195 tests passed on the Pi): the Preview box and the wider slider verified on the Pi; frame slider, level-line angle, a previewed-area frame and status-line feedback for stack filters and Undo fixed on the Mac. Round 7 (2026-10-30, `test6.txt`, 201 of 202 tests passed on the Pi): all of those verified on the Pi by hand; one frame slider test failed on the Pi (the click check, a flaw in the test); after the test was fixed all 204 tests pass on the Pi. | `scripts/`, `packaging/` |
-| 1 MVP | Done. `ImageDoc` (stack, calibration, LUT, ROI, memory-bounded undo), readers/writers (PNG/JPEG/BMP/TIFF/ImageJ-TIFF/OME-TIFF/NPY, 8/16-bit, RGB, stacks, DICOM if `pydicom` is installed), canvas with mip pyramid and vector ROI overlays, 8 ROI tools plus ROI manager, Measure with calibration and scale bar, filters, morphology, thresholds, declarative parameter dialogs with a throttled live preview on a crop, macro record/replay/batch, plugin loader. | `src/imagepi/{core,io,ops,ui,plugins}` |
-| 2 Camera | Done against a simulated backend and a fake SDK; the real SDK library loads on macOS. `CameraBackend` ABC, ToupTek backend (pull mode, `PullImageV3`, hotplug, disconnect handling, permission error hint), V4L2/OpenCV fallback, simulated backend (synthetic scene or folder/video replay), live-view panel, snap with metadata, time-lapse, per-objective calibration presets. | `src/imagepi/camera`, `ui/camera_panel.py` |
+| 1 MVP | Done. `ImageDoc` (stack, calibration, LUT, ROI, memory-bounded undo), readers/writers (PNG/JPEG/BMP/TIFF/ImageJ-TIFF/OME-TIFF/NPY, 8/16-bit, RGB, stacks, DICOM if `pydicom` is installed), canvas with mip pyramid and vector ROI overlays, 8 ROI tools plus ROI manager, Measure with calibration and scale bar, filters, morphology, thresholds, declarative parameter dialogs with a throttled live preview on a crop, macro record/replay/batch, plugin loader. | `src/scopi/{core,io,ops,ui,plugins}` |
+| 2 Camera | Done against a simulated backend and a fake SDK; the real SDK library loads on macOS. `CameraBackend` ABC, ToupTek backend (pull mode, `PullImageV3`, hotplug, disconnect handling, permission error hint), V4L2/OpenCV fallback, simulated backend (synthetic scene or folder/video replay), live-view panel, snap with metadata, time-lapse, per-objective calibration presets. | `src/scopi/camera`, `ui/camera_panel.py` |
 | 3 Analysis | Done. Connected components, marker watershed, SLIC, Felzenszwalb, Random Walker; Analyze Particles (size/circularity/edge filters, outlines, summary and density); `regionprops` geometry (area, perimeter, centroid, Feret, ellipse, solidity); area fraction; marker counting; results statistics (summary, filter, group-by); Z-project; extended depth of field; Fiji LUT loader (raw, ICOL, text, float text). | `ops/{analyze,segment,stack}.py`, `core/luts.py` |
 | 4 Polish | Mostly done. Light/dark/auto theme, touch-friendly sizing option, pinch zoom, `.desktop` launcher, install script, strip-parallel/OpenCV filters, RAM-aware undo budget, benchmark script. | `ui/theme.py`, `packaging/` |
 
@@ -99,7 +102,7 @@ The frame rate was set by the exposure, not by USB: the camera starts in auto ex
 2.9 fps (1/0.35 s), the same at every resolution and with the crop, and the snap's Info said `exposure_us` 350000. Other round 3 findings: the live image was
 mirrored; the Exposure box and the Bit depth box were disabled but looked enabled (the dark palette had no disabled colours), so "the 16-bit setting had no
 effect" (the camera has `RAW8` only, so it has no 16-bit mode); the OpenCV V4L2 backend wrote seven "can't open camera by index" lines to the log on every Refresh.
-Fixes (Mac, 175 tests): ImagePi caps the auto exposure time (default 100 ms, an "Auto limit" box, remembered per camera) and the live view shows the exposure beside
+Fixes (Mac, 175 tests): Scopi caps the auto exposure time (default 100 ms, an "Auto limit" box, remembered per camera) and the live view shows the exposure beside
 the fps; Flip horizontally / vertically checkboxes (software flip of previews and stills, remembered per camera, hardware-crop coordinates mapped through the flip);
 disabled controls now look disabled; a camera without a >8-bit mode shows "8-bit only"; a second crop adds the first crop's offset and a resolution change clears the
 crop; the V4L2 backend probes only `/dev/video*` nodes that exist and silences OpenCV's log while probing; `pi_bringup.py camera` measures with a fixed 10 ms exposure by
@@ -136,8 +139,8 @@ Round 5 (2026-10-30, `test4.txt`, results in `references/test4results.txt`; 193 
   and the crop's content is not mirrored (match scores 0.99). So this camera delivers frames upside down relative to the eyepiece view and its
   hardware ROI is in the eyepiece view's coordinates, which is what `delivered_flip` and the ROI mapping assume. In the app (camera cable to the rear, both Flip boxes unticked) the live view matches the eyepiece, and every crop showed
   exactly the selection: unticked, Flip horizontally, Flip vertically and both, including a second selection on the cropped picture.
-- **Snaps.** `snaptest --count 4` (ImagePi's restart after each still): 2.2 / 2.1 / 2.1 / 2.1 s per 4912x3684 snap, one stream restart each, 31 to 32 live frames pulled afterwards. `snaptest --count 3 --no-restart`: 1.9 / 1.8 / 1.9 s,
-  no restarts, 32 to 33 live frames afterwards. So through ImagePi's current still code the SDK delivers repeated stills without a restart when the script pulls the live frames itself; the restart costs about 0.2 s and a short blink.
+- **Snaps.** `snaptest --count 4` (Scopi's restart after each still): 2.2 / 2.1 / 2.1 / 2.1 s per 4912x3684 snap, one stream restart each, 31 to 32 live frames pulled afterwards. `snaptest --count 3 --no-restart`: 1.9 / 1.8 / 1.9 s,
+  no restarts, 32 to 33 live frames afterwards. So through Scopi's current still code the SDK delivers repeated stills without a restart when the script pulls the live frames itself; the restart costs about 0.2 s and a short blink.
   It stays on: round 4's failure was in the app, where the live-view thread pulls at the same time, and the script cannot reproduce that. In the app four or more snaps in a row all arrived, also with a crop active (the snap is still the
   full picture), and the live view carried on by itself.
 - **Measuring and calibration** (the status line and Results columns added in round 4 work). Pixel size at 4912 px wide (Results `Length` / `Length (px)`): 4X 0.599 um/px (1669.3 px/mm), 10X 0.243 um/px (4118.6 px/mm), 40X 0.0607 um/px (16463.6 px/mm); 4X to 40X is a factor 9.86.
@@ -187,10 +190,11 @@ On the dev Mac an 18 MP 8-bit image repaints in about 20 ms (fit, 100%, 25% and 
 about 33 ms; peak RSS for a 16-bit RGB 18 MP image was about 0.8 GB. These are Mac numbers, not Pi numbers.
 
 **Not verified, and needing the hardware:**
+- On the Pi 5: **the rename from ImagePi to Scopi** (2026-10-30): `git pull` then `bash packaging/install_pi.sh` (removes the old `imagepi` package and menu entry), the first start copying `~/.imagepi` to `~/.scopi` and the old Qt settings to the new ones (tested on the Mac, including a start of the real `main()` in a temporary home), the `scopi` command and menu entry. 212 tests on the Mac (204 before the rename, 8 new ones for the migration).
 - On the Pi 5: nothing from rounds 1 to 7 is waiting for a re-test; the full `pytest` run passes there (204 tests). Everything listed in earlier rounds was re-tested by hand in rounds 4 to 7 (Preview box, "Process entire stack", Undo, status line, frame slider, "Preview area" frame, Shift-drag angles).
 - Any real camera: 16-bit RGB48 pull (the U3CMOS18000KPA has none; it is untestable on it), hotplug events. Verified on the OMAX camera in rounds 3 to 5: frames, RGB byte order, hardware ROI crop and its position (`roitest`, in the eyepiece view's coordinates), the eyepiece-view orientation (`delivered_flip`), snaps in a row (script and app), unplug, fps at each resolution with a fixed 10 ms exposure, calibrated measurements at 4X/10X/40X.
 - The `V4L2Camera` fallback and DICOM reading (no device / `pydicom` not installed here).
-- The `imagepi.plugins` entry-point route (folder discovery is tested).
+- The `scopi.plugins` entry-point route (folder discovery is tested).
 
 ### Camera SDK versions
 
@@ -225,7 +229,7 @@ merged, loads as v60.32327.20260818). Run `install_toupcam.py` (see the Mac quic
 | Topic | Decision |
 |---|---|
 | GUI toolkit | **PySide6 (Qt6)**, native Wayland. wxPython (used by original ImagePy) has no aarch64 PyPI wheel. |
-| Code base | **Fresh package** (`imagepi/`) that ports *ideas* from ImagePy, not its code. |
+| Code base | **Fresh package** (`scopi/`) that ports *ideas* from ImagePy, not its code. |
 | Target OS / Python | **Raspberry Pi OS Trixie, Python 3.13** (PySide6 aarch64 wheels are tagged `manylinux_2_39`, so glibc >= 2.39; Trixie has 2.41, Bookworm has 2.36). Develop on macOS with a Python 3.13 venv (`.venv` is now 3.13). |
 | First milestone | Viewer + ROI/measure + filters. Camera is milestone 2, analysis is milestone 3. |
 | Avoid | numba, wxPython, vispy, QtMultimedia (its FFmpeg plugin is a known Pi packaging risk). |
@@ -255,7 +259,7 @@ Only the Fiji launcher/packaging repo (212 MB of the 214 MB is `.git`). No Image
 | Item | Finding |
 |---|---|
 | `references/omax/ToupTekToupLite.x64.sh` | x86-64 only ToupLite GUI installer (no arch check, installs to `/usr/local/ToupLite`). **Will not run on the Pi 5. Not needed.** |
-| `references/omax/SDK/toupcamsdk.20230702.zip` | The real SDK, v54.22876.20230702, 633 files. This is what ImagePi uses. |
+| `references/omax/SDK/toupcamsdk.20230702.zip` | The real SDK, v54.22876.20230702, 633 files. This is what Scopi uses. |
 | `toupnamsdk.20230702.zip` | ToupTek *network* camera SDK. Not for this USB camera. Ignore. |
 | `OMAXTwainSetup.exe`, `OMAXDshowSetup.exe`, `UvcHamSetup.exe` | Windows TWAIN/DirectShow/UVC drivers. Irrelevant to the Pi. |
 Inside `toupcamsdk.20230702.zip`, the files we use (inspected read-only; nothing has been run yet):
@@ -265,7 +269,7 @@ Inside `toupcamsdk.20230702.zip`, the files we use (inspected read-only; nothing
 - `python/samples/simplest.py` (pull-mode loop) and `qt.py` (PyQt5 live view, the template for our PySide6 camera panel).
 - `inc/toupcam.h` and `doc/en.html`, the full API manual.
 - `linux/udev/99-toupcam.rules`: `SUBSYSTEM=="usb", ATTRS{idVendor}=="0547", MODE="0666"`. The same rule is embedded in the ToupLite installer. The camera shows up as `0547:3018` ("Anchor Chips USB3.0 Camera") on the Pi.
-- `extra/imagepro`, `extra/imagelib`: headers only, no Linux libraries. Ignore (ImagePi does its own processing).
+- `extra/imagepro`, `extra/imagelib`: headers only, no Linux libraries. Ignore (Scopi does its own processing).
 
 API points that shape the design:
 - Use pull mode: `StartPullModeWithCallback` plus `PullImageV3(buf, bStill, bits, rowPitch, info)`. The callback must return quickly and must never call `Stop`/`Close` (deadlock).
@@ -288,7 +292,7 @@ API points that shape the design:
 A GUI-agnostic core, so it can be tested headless and on the dev Mac.
 
 ```
-imagepi/                     (src layout, pyproject.toml, Python >= 3.12)
+scopi/                     (src layout, pyproject.toml, Python >= 3.12)
   core/      image.py (ImageDoc: ndarray stack, dtype, calibration, LUT, ROI, undo ring)
              roi.py (Rect/Ellipse/Polygon/Freehand/Line/Point/Angle -> mask via skimage.draw)
              calibration.py (um/px, per-objective presets, scale bar), manager.py
@@ -307,7 +311,7 @@ imagepi/                     (src layout, pyproject.toml, Python >= 3.12)
              results, ROI manager, camera controls), theme.py
   app.py, __main__.py
 tests/       pytest (core/io/ops headless; UI via pytest-qt with QT_QPA_PLATFORM=offscreen)
-packaging/   99-toupcam.rules, imagepi.desktop, Pi install script
+packaging/   99-toupcam.rules, scopi.desktop, Pi install script
 vendor/toupcam/   git-ignored SDK files (see licensing note)
 ```
 
@@ -347,7 +351,7 @@ Design points:
 ## Verification
 
 - **Dev Mac:** `pytest` for core/io/ops, including golden-image tests against scikit-image values and ROI mask/area/calibration unit tests. UI smoke tests use pytest-qt offscreen. The simulated camera drives live-view tests, and the macOS dylib allows tests against the real camera.
-- **Pi 5:** run `python -m imagepi` under Wayland and check the following:
+- **Pi 5:** run `python -m scopi` under Wayland and check the following:
   - Open an 18 MP TIFF and pan/zoom smoothly.
   - Apply Gaussian and median filters with preview and no UI freeze.
   - Draw ROIs and measure against the 0.01 mm calibration slide that ships with the camera.
