@@ -1,0 +1,35 @@
+On the Pi: `packaging/install_pi.sh [toupcamsdk.zip]` (apt libs, venv, udev rule, SDK, desktop launcher), then
+`scripts/pi_bringup.py check | render | camera` to do the milestone 0 measurements. `scripts/benchmark.py` times the
+display pipeline and filters on an 18 MP image
+
+
+Once those steps are done on the Pi, send me the terminal output as pasted text. Screenshots are fine for anything that isn't text. I'm not asking for the files.
+
+1. packaging/install_pi.sh
+
+The last 20 or so lines, or the whole log if anything failed. Errors from apt, pip, the udev rule or the SDK step are what I need.
+Whether the desktop launcher showed up in the menu.
+2. scripts/pi_bringup.py check
+
+The full output. It prints the Python, glibc and machine info, then an ok or FAIL line for each library, then the Qt platform name.
+3. scripts/pi_bringup.py render
+
+The full output. It prints median and p95 frame times with an approximate fps for each render case. These are the milestone 0 numbers.
+Whether you ran it on the Pi's real display or over SSH or VNC. This changes how to read the Qt platform and the timings.
+4. scripts/pi_bringup.py camera
+
+The full output with the camera plugged in:
+the USB listing and the 0547 lines
+the camera name, resolutions and pixel size
+the WxH: fps, MB/s line for each resolution
+If it prints "no ToupTek camera found" or a permission error, send that along with the output of lsusb and ls -l /etc/udev/rules.d/99-toupcam.rules.
+5. scripts/benchmark.py
+
+The full output. It prints the image size, the median and min ms for each display and filter step, and the peak RSS and undo budget.
+Run it as scripts/benchmark.py --rgb or --bits 16 too, if you want those cases measured.
+Also include:
+
+The Pi model, RAM size, and OS version (cat /etc/os-release, uname -m).
+Anything that looked slow or wrong when you used the app by eye, such as pan and zoom lag, or live view stutter or tearing.
+Whether the camera's live view worked in the actual GUI, if you tried it.
+If a step fails early, send just that step's output and stop there. I'll fix it before you go on to the next one.

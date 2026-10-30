@@ -1,0 +1,34 @@
+# ImagePi runtime dependencies. This is the same list as `dependencies` in pyproject.toml.
+#
+#   python3.13 -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+#   .venv/bin/pip install -e .          # then ImagePi itself:  .venv/bin/imagepi
+#
+# Needs Python 3.12 or newer (3.13 is what the Raspberry Pi 5 runs). On the Pi, `bash packaging/install_pi.sh` does all of this for you (see usage.md).
+# On Linux the PySide6 wheels need glibc 2.39 or newer: Raspberry Pi OS Trixie, not Bookworm.
+#
+# No version pins. Versions the test suite passed with on the development Mac:
+#   numpy 2.5.4, scipy 1.18.1, scikit-image 0.26.0, opencv-python-headless 5.0.0.93, pillow 13.0.0, tifffile 2026.10.15, imageio 2.38.1,
+#   pandas 3.0.6, matplotlib 3.11.2, PySide6-Essentials 6.12.0
+# The Raspberry Pi 5 ran the same numpy, scipy, scikit-image, matplotlib, PySide6 and OpenCV, with pandas 3.1.0.
+
+numpy
+scipy
+scikit-image
+
+# Use the HEADLESS build. `opencv-python` (the GUI build) bundles its own Qt, which stops PySide6 from loading its platform plugin.
+# Both provide `import cv2`: if opencv-python or opencv-contrib-python is already installed, uninstall it first.
+opencv-python-headless
+
+pillow
+tifffile
+imageio
+pandas
+matplotlib
+
+# Qt for Python (the Essentials package is enough; the full PySide6 pulls in far more than ImagePi uses)
+PySide6-Essentials
+
+# Optional:
+#   pydicom             read DICOM files             (pip install pydicom, or pip install -e ".[dicom]")
+#   pytest, pytest-qt   run the test suite           (pip install pytest pytest-qt, or pip install -e ".[test]")

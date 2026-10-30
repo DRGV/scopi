@@ -1,0 +1,308 @@
+ImagePi - Pi 5 test round 2
+===========================
+
+What round 1 showed (from references/local_environment_notes.md):
+- ImagePi itself was never installed in the Pi's .venv (no "imagepi" package or command there), so nothing could launch.
+- install_pi.sh printed nothing and stopped early on every run. The repo copy is fixed (see Part 1).
+- OpenCV went in as "opencv-python" (the GUI build). It bundles its own Qt and breaks PySide6's platform plugin.
+  ImagePi needs "opencv-python-headless". The fixed install script swaps it automatically.
+- "sv2" is not OpenCV. It is a different PyPI project (that is why it failed to build). The import name is cv2, the pip
+  package is opencv-python-headless. Nothing needs to be installed as "cv2" or "sv2".
+- The 2026 camera SDK (vendor/toupcamsdk.20260519.zip) did extract correctly into vendor/toupcam/.
+
+Rules for this round
+- Run every command as your normal user ("sch"). Do NOT use sudo unless a step says so.
+- Run scripts with "bash", never "sh" (sh is dash on the Pi).
+- Parts A to G need only the Pi. Part H needs the camera plugged in, and Parts B to D done first.
+- Do the parts in order. If a step fails, copy its terminal output, send it, and stop there. I will fix it before you go on.
+- "Send me" = paste the text. Screenshots are fine for anything that is not text.
+
+
+PART A - Get the fixed code onto the Pi
+---------------------------------------
+
+A1. On the Mac (the dev machine). I changed files but did not commit anything:
+      cd ~/Code/Python/imagepy
+      git status
+      git diff
+    If the diff looks right:
+      git add .gitignore readme.md packaging scripts tests
+      git commit -m "Fix Pi install: headless OpenCV, silent exit, no sudo; update readme and paths"
+      git push -u origin dev
+    (The Pi cloned main earlier. dev does not exist on GitHub until you push it.)
+
+A2. On the Pi:
+      cd ~/Code/imagepi
+      git status
+    Expect untracked files (notes/, tree.txt, scripts/toupcam.py). If git also lists packaging/install_pi.sh as modified
+    (your debug echo lines) or packaging/imagepi.desktop as deleted, undo that, the new version replaces them:
+      git restore packaging/install_pi.sh packaging/imagepi.desktop
+    Remove two leftovers (scripts/toupcam.py is a stray copy of the SDK wrapper, the app loads the one in vendor/toupcam/;
+    the .part file is an unfinished download):
+      rm -f scripts/toupcam.py vendor/toupcamsdk.XxauGqTm.20260519.zip.part
+    Switch to dev:
+      git fetch origin
+      git switch dev
+      git pull
+      git log --oneline -3
+    Expect the newest commit to be the one you made in A1.
+
+    Send me: the output of "git status" and "git log --oneline -3" only if anything above did not work as described.
+
+
+PART B - Rebuild the environment with the fixed installer
+---------------------------------------------------------
+
+The old .venv has the wrong OpenCV, an editor stack (ReText/PyQt6) and no ImagePi, so start clean. The pip cache keeps the
+wheels you already downloaded, so this is faster than the first time. Nothing in .venv is irreplaceable.
+
+B1. Run the installer (it asks for your sudo password for apt and the udev rule):
+      cd ~/Code/imagepi
+      deactivate 2>/dev/null
+      rm -rf .venv
+      bash packaging/install_pi.sh vendor/toupcamsdk.20260519.zip 2>&1 | tee ~/install_pi.log
+
+    It prints "==> <step>" headings: Checking the platform, Installing system libraries, Creating the virtual environment,
+    Installing ImagePi and its Python dependencies, Installing the ToupTek camera SDK and udev rule, Installing the desktop
+    launcher, Done. Expect 10 to 20 minutes on this network. If a download times out, run the same command again.
+    "bash -x packaging/install_pi.sh ..." prints every command if it stops without an error.
+
+    Send me: "tail -n 40 ~/install_pi.log" (the whole file if it failed). Also tell me how long it took.
+
+B2. Check what ended up in the venv:
+      source .venv/bin/activate
+      which python
+      which imagepi
+      pip list 2>/dev/null | grep -i -E "opencv|pyside6|shiboken|scikit-image|imagepi|sv2|pyqt|retext"
+      python -c "import cv2, os; print('cv2', cv2.__version__); print('QT_QPA_PLATFORM_PLUGIN_PATH =', os.environ.get('QT_QPA_PLATFORM_PLUGIN_PATH'))"
+    Expect:
+      python and imagepi both under /home/sch/Code/imagepi/.venv/bin
+      opencv-python-headless 5.0.0.93 and NO plain "opencv-python"; PySide6 6.12.0; scikit-image; imagepi 0.1.0
+      no sv2, PyQt6 or ReText
+      "QT_QPA_PLATFORM_PLUGIN_PATH = None"   (if it prints a path ending in cv2/qt/plugins, the wrong OpenCV is still installed)
+
+B3. Check the launcher, the udev rule and the SDK library:
+      grep '^Exec=' ~/.local/share/applications/imagepi.desktop
+      cat /etc/udev/rules.d/99-toupcam.rules
+      file vendor/toupcam/linux/arm64/glibc/libtoupcam.so
+    Expect:
+      Exec=/home/sch/Code/imagepi/.venv/bin/imagepi %F      (the full venv path, not just "imagepi")
+      rule lines with idVendor "0547" and MODE="0666"
+      "ELF 64-bit LSB shared object, ARM aarch64"
+
+    Send me: the output of B2 and B3.
+
+
+PART C - Automated checks
+-------------------------
+
+C1. Library check (same machine, in the activated venv):
+      python scripts/pi_bringup.py check
+    Expect "ok" on every line (numpy, scipy, skimage, cv2, PIL, tifffile, imageio, pandas, matplotlib, PySide6) and a last
+    line "Qt platform: <name>". In a terminal on the Pi desktop the name is usually wayland (or xcb).
+    Over SSH there is no display, so use:   QT_QPA_PLATFORM=offscreen python scripts/pi_bringup.py check
+
+C2. The 141 unit tests (UI tests run offscreen, no display needed):
+      QT_QPA_PLATFORM=offscreen python -m pytest -q 2>&1 | tail -15
+    Expect "141 passed". On the Mac it is 140 passed + 1 skipped; on the Pi the skipped one runs, because it loads the
+    real libtoupcam.so from vendor/toupcam, which also proves the SDK library loads on aarch64. Allow a few minutes.
+    If anything fails, rerun "python -m pytest -x -q" and send the first failure in full.
+
+    Send me: the full output of C1 and the tail of C2.
+
+
+PART D - Launch the application
+-------------------------------
+
+Do this in a terminal ON the Pi's desktop (not over SSH), so there is a real display.
+
+D1. Check the session, then start the app:
+      cd ~/Code/imagepi && source .venv/bin/activate
+      echo "session=$XDG_SESSION_TYPE  wayland=$WAYLAND_DISPLAY"
+      python -m imagepi 2>&1 | tee ~/imagepi_run.log
+    Expect session=wayland and a main window with the menus File, Edit, Image, Process, Analyze, Camera, Macro, View, Help
+    and a toolbar of Pointer, Rectangle, Oval, Polygon, Freehand, Line, Point, Angle, Hand (pan), Fit, 100%, +, -, Measure.
+    The terminal may print INFO lines. That is normal.
+
+D2. Quit with File > Quit (Ctrl+Q). Note how many seconds it takes for the terminal prompt to come back. It should be
+    almost immediate. A long wait means a camera/hotplug thread is not shutting down.
+
+D3. If the window does not open (or the app crashes), run these and send everything:
+      QT_DEBUG_PLUGINS=1 python -m imagepi 2>&1 | tail -80
+      env | grep -E '^(QT_|WAYLAND|XDG_SESSION|DISPLAY)'
+      ls ~/Code/imagepi/.venv/lib/python3.13/site-packages/PySide6/Qt/plugins/platforms
+    Then try the X11 route for comparison (only works if Xwayland is installed):
+      QT_QPA_PLATFORM=xcb python -m imagepi
+
+D4. The menu launcher: open the Pi application menu and look under Graphics for "ImagePi". If it is missing, log out and
+    back in once, then look again. Start it from the menu. Expect the app to open, with a generic icon (no icon is shipped yet).
+    Send me whether it showed up and whether it started.
+
+
+PART E - Speed numbers (milestone 0)
+------------------------------------
+
+Run these on the Pi desktop, with nothing else busy (close Fiji and browsers). Do not touch the mouse while "render" runs.
+Targets: a median under about 33 ms per repaint gives 30 fps; under 16 ms gives 60 fps.
+
+E1. Record the machine first:
+      cat /proc/device-tree/model; echo; free -h; head -4 /etc/os-release; uname -m
+      vcgencmd get_throttled; vcgencmd measure_temp
+    "throttled=0x0" means no under-voltage or heat throttling. Anything else makes the timings unreliable. Say so if so.
+
+E2. The canvas test (opens a 1280x720 window for about 10 seconds):
+      QT_QPA_PLATFORM=wayland python scripts/pi_bringup.py render 2>&1 | tee ~/render.log
+
+E3. The display pipeline and filters on an 18 MP image (a minute or two each, no window):
+      python scripts/benchmark.py 2>&1 | tee ~/bench_gray8.log
+      python scripts/benchmark.py --rgb 2>&1 | tee ~/bench_rgb8.log
+      python scripts/benchmark.py --rgb --bits 16 2>&1 | tee ~/bench_rgb16.log
+
+E4. Check the throttle flag again:   vcgencmd get_throttled
+
+    Send me: E1 output, and the full output of E2 and E3 and E4. Say whether you were on the Pi's own screen, VNC or SSH.
+
+
+PART F - Using the app with test images (no camera)
+---------------------------------------------------
+
+F0. Make the test images (about a minute, uses up to 1 GB of RAM):
+      python scripts/make_test_images.py
+      ls -lh ~/imagepi-test
+    It writes four files to ~/imagepi-test: known_shapes.png, cells_gray.png, cells_16bit.tif, cells_18mp_rgb.tif (54 MB).
+    The last line it prints should read "6 squares of 10000 px, 3 discs of [7845, 7845, 7845] px".
+
+F1. Exact-answer check. Start the app with the file:   python -m imagepi ~/imagepi-test/known_shapes.png
+    The image is 9 light shapes on a dark background: 6 squares (100x100 px, one in the bottom-right corner touching two
+    edges) and 3 discs (radius 50 px).
+    1. Image > Adjust > Auto Threshold...   Method: Otsu, Objects: bright, then OK. The image turns black and white.
+    2. Analyze > Analyze Particles...   leave the defaults, OK.
+       Expect: outlines on all 9 shapes, and in the Results panel 9 rows (Area 10000 six times and 7845 three times)
+       plus, in a small "Particle summary" table under the results, one row with Count 9.
+       (Round 2 found the outlines were yellow and 1 px wide, so invisible on white shapes, and that the summary was never
+       shown. Both are fixed: outlines are now red and 2 px wide, and the summary table exists. See test3.txt.)
+    3. Analyze > Clear Results, then Analyze Particles again with "Exclude on edges" ticked. Expect 8 rows (the corner square is gone).
+    4. Image > Set Scale...   leave "Distance in pixels" and "Known distance" alone, set Unit to um and "Pixel size (unit/px)"
+       to 0.5, OK. Clear results, run Analyze Particles (edges not excluded). Expect Area 2500 six times and 1961.25 three times.
+       A scale bar should show in the corner (Image > Show Scale Bar toggles it).
+    5. Edit > Undo (Ctrl+Z) until the shapes are grey again (undo of the threshold). Expect the original image back.
+    6. ROI tools (toolbar). Draw one of each on the image: Rectangle, Oval, Line, Point, Angle (click 3 points). For Polygon,
+       click the corners and double-click (or press Enter) to finish; Freehand is click-drag. Press Ctrl+M (Measure) after each
+       and watch the Results panel. Draw a rectangle around exactly one square and press Ctrl+T (Add to ROI Manager).
+       Draw a Line across one square (about 100 px at 0.5 um/px should read about 50 um long). Nothing should crash.
+
+F2. Filters on a realistic image. Open ~/imagepi-test/cells_gray.png (File > Open, Ctrl+O). Dark cells on a bright background.
+    1. Process > Filters > Gaussian Blur...   Sigma 2 with the preview box ticked. Drag the sigma slider (added after round 2;
+       the spin box is still there).
+       Judge: does the preview follow within about a second, and does the window stay responsive? Press OK.
+    2. Process > Filters > Median...   Radius 3. OK. Press Ctrl+Z to undo.
+    3. Image > Adjust > Auto Threshold...   Otsu, Objects: dark. OK. Then Analyze > Analyze Particles.
+       On the Mac this gives 80 particles, total area 81369 px (%Area 7.19). The Pi should match, or be within a few.
+       (Round 2 on the Pi: 80 particles. The summary table was missing at that time.)
+    Send me: the particle count and the summary row (Count, Total Area, %Area), plus any filter that felt slow or froze.
+
+F3. 16-bit path. Open ~/imagepi-test/cells_16bit.tif. Expect it to display normally. Values go from 0 to 3264.
+    Open the Display panel (View menu has a checkbox for each panel) and move the brightness/contrast (window/level) controls.
+    Expect the image and histogram to respond. Then Process > Filters > Gaussian Blur... sigma 2, OK.
+    Image > Type > 8-bit should work. Ctrl+Z restores 16-bit.
+
+F4. The 18 MP image. Open ~/imagepi-test/cells_18mp_rgb.tif.
+    1. Time File > Open with a stopwatch (from clicking Open to the image appearing).
+    2. In a second terminal start "htop" (or run "ps -o rss,cmd -C python"). Watch memory and CPU during the next steps.
+    3. Zoom with the mouse wheel and with Ctrl+= / Ctrl+-, Ctrl+0 (fit) and Ctrl+1 (100%). Pan with the Hand tool or by dragging
+       at high zoom. Judge by eye: smooth, a little laggy, or stuttering? Does zooming with the wheel feel instant?
+    4. Process > Filters > Gaussian Blur... sigma 2, OK. Time it. Is the window usable while it runs?
+    5. File > Save As... TIFF (e.g. ~/imagepi-test/out.tif), then File > Close and reopen it. Check the size with ls -l.
+    Send me: the open time, the filter time, peak memory seen in htop, and a plain-words description of how pan and zoom felt.
+
+F5. Settings. View > Theme > Dark, then Light. View > Touch-friendly Sizing on and off. Quit and start the app again.
+    Expect your theme choice to be remembered.
+
+
+PART G - The simulated camera inside the app (no hardware)
+----------------------------------------------------------
+
+This tests the live-view threading and drawing on the Pi without needing the camera.
+
+G1. Start the app (python -m imagepi). Open the camera panel: Camera > Camera Panel (Ctrl+Shift+C).
+    The Device list should show a "[simulated]" entry. Select it and click Connect, then Start live view.
+    A "Live" tab appears with a moving scene. The top-left corner of the picture shows "1228 x 922   NN.N fps".
+    Expect about 14 to 20 fps (the simulator needs 42 ms to draw a frame on the Mac and about 70 ms on the Pi, so it, not the
+    display, sets the limit; round 2 measured 13.7 to 14.5 on the Pi, which is a pass). Send me the fps number, and whether it looked smooth.
+G2. Try each: Exposure and Gain (picture gets brighter/darker), Auto exposure, another Resolution (live view restarts),
+    Bit depth 16-bit.
+G3. Snap (button, or Ctrl+Shift+S). A new tab "snap_HHMMSS" opens. File > Save As... ~/imagepi-test/snap.tif, then in a terminal:
+      python -c "import tifffile,sys; print(tifffile.TiffFile(sys.argv[1]).imagej_metadata)" ~/imagepi-test/snap.tif
+    Expect an "Info" entry containing the camera name, exposure, gain, bits and calibration, but only for an 8-bit snap. A
+    16-bit colour snap cannot be an ImageJ TIFF, so it is saved as a plain TIFF with the same text in its ImageDescription tag
+    and this command prints None for it (round 2 hit exactly that). test3.txt has a command that shows both.
+G4. Time-lapse: Interval 2 s, Frames 3, then Start time-lapse. After about 8 seconds:
+      ls -l ~/ImagePi-timelapse
+    Expect 3 image files.
+G5. Stop live view, Disconnect, quit. Expect a prompt back within a few seconds.
+    Send me: the fps from G1, anything that failed or looked wrong, and the ls output from G4.
+
+
+PART H - The real OMAX camera
+-----------------------------
+
+Do Parts B to D first. This part is the milestone 0 camera work.
+
+H1. Hardware. Plug the camera into one of the BLUE USB 3.0 ports, directly (no hub), using the camera's own cable. Use the Pi 5's
+    official 5V/5A (27 W) power supply if you have it. A weaker supply limits the USB ports' current and a bus-powered camera can drop
+    out. Remove the lens cap and turn the microscope lamp on.
+
+H2. The USB side:
+      lsusb
+      lsusb -t
+      lsusb -d 0547:
+      dmesg | grep -i -E "usb|xhci" | tail -25
+    Expect a line "ID 0547:xxxx" in lsusb (send me the xxxx, it is the camera's product id). In "lsusb -t" the camera should show
+    "5000M" (USB 3 speed). "480M" means it connected as USB 2 (bad cable or port, or a hub in the way).
+    The udev rule gives everyone access. From the "lsusb -d 0547:" line take the Bus and Device numbers (for example Bus 004, Device 003):
+      ls -l /dev/bus/usb/004/003
+    Expect "crw-rw-rw-". If it says crw-rw-r-- the rule did not apply: unplug and replug the camera once, then check again.
+
+H3. The bring-up measurement (takes about 20 seconds):
+      cd ~/Code/imagepi && source .venv/bin/activate
+      python scripts/pi_bringup.py camera --secs 5 2>&1 | tee ~/camera_bringup.log
+    Expect the camera name, its resolutions, then one line per resolution like "4912x3684:  5.5 fps, 296.0 MB/s decoded RGB24".
+    The vendor spec is about 5.6 fps at 4912x3684, 18.1 at 2456x1842 and 32.2 at 1228x922 over USB 3.
+    If nothing is found, it may take up to about two minutes before it gives up. Wait, and tell me how long it took.
+    If it says "no ToupTek camera found" or "permission denied", send me that plus the output of H2, then try once as a diagnostic:
+      sudo .venv/bin/python scripts/pi_bringup.py camera --secs 3
+    and tell me whether that works (it separates a permissions problem from an SDK problem).
+
+H4. In the app (python -m imagepi):
+    1. Camera > Camera Panel, click Refresh. The Device list should now show the OMAX camera with "[touptek]" next to the simulated one.
+    2. Select it, Connect, choose Resolution 1228 x 922, Start live view. Read the fps in the corner of the live image
+       (expect near 30) and judge smoothness, tearing and lag.
+    3. Colours and orientation: put a RED object and printed text under the lens. Red must look red (if it looks blue, the byte order
+       is wrong). Text must read normally (if it is mirrored or upside down, tell me which).
+    4. Move Exposure and Gain, tick Auto exposure, point at a blank white area and click Auto white balance.
+    5. Switch Resolution to 2456 x 1842 and then 4912 x 3684 and read the fps at each.
+    6. Hardware crop: with live view running, drag a rectangle on the live picture. The Crop button should change to
+       "Crop W x H (click: full frame)" and the fps should rise. Click it to return to full frame.
+    7. Snap at 8-bit: the full-resolution picture should open in a new tab. Time the snap. Save it as TIFF (Ctrl+S) and
+       run the python -c line from G3 on the file.
+    8. Set Bit depth to 16-bit, Start live view, Snap. Expect a 16-bit image, or a clear message if the camera has no 16-bit mode.
+    9. Unplug the USB cable WHILE live view runs. Expect a message in the status bar or the panel and the app still running.
+       Plug it back in, Camera > Refresh Devices, connect again.
+    10. Quit the app. Expect the prompt back within a few seconds.
+    Send me: the fps at each resolution, the snap time, anything wrong with colours or orientation, and what happened in step 9.
+
+H5. Calibration (when you have the 0.01 mm slide): focus on the scale, Snap, draw a Line tool line along 1 mm of the scale,
+    Image > Set Scale..., Known distance 1, Unit mm, OK. Save as an objective preset (name it e.g. 4x). Then measure
+    another 0.5 mm span with the Line tool and Ctrl+M. Send me the pixel size it computed and the measured length.
+
+
+What to send back at the end
+----------------------------
+- Any failed step, with its output (the first failed step is enough).
+- Part B: tail of ~/install_pi.log, and the output of B2 and B3.
+- Part C: the full C1 output and the C2 tail.
+- Part D: whether the window opened, the quit time, and whether the menu launcher worked.
+- Part E: all outputs, and how you ran it (own screen, VNC, SSH).
+- Part F and G: the numbers asked for and anything that looked slow or wrong to your eye.
+- Part H: the product id, the fps and speed lines, and what you saw in H4.
+- Anything that looked slow or wrong when you used the app: pan and zoom lag, live view stutter or tearing.

@@ -1,0 +1,97 @@
+ImagePi - Pi 5 test 5, part C again (Ctrl+Z and "Process entire stack")
+======================================================================
+
+Why again
+In the first run of part C the filter with "Process entire stack" unticked changed all three frames, and the one with it ticked changed only frame 1 a second time
+(StdDev 2.71 = blurred twice), with no Undo having taken effect in between. On the Mac the same steps give the instructed results, so I cannot tell whether the
+app did something unexpected on the Pi or whether we read the steps differently. This version removes every place where that could hide:
+- Each stack run starts from a freshly opened image, so no earlier step (or Undo) can leave its mark.
+- You write down which boxes have a check mark when you press OK.
+- The stack runs use different frames and opposite box settings, so each result can only mean one thing.
+- Ctrl+Z gets its own test first, on a single image, with exact numbers to compare.
+No new code: run it on the Pi as it is now. No git pull is needed (cells_stack.tif is already in ~/imagepi-test).
+
+Rules
+- Normal user "sch", bash, venv active (cd ~/Code/imagepi && source .venv/bin/activate). Start fresh: quit ImagePi if it is open, then
+    python -m imagepi 2>&1 | tee ~/gui_c.log
+- Never draw a selection on a picture in this test: Measure then reads the selection instead of the whole picture. Do not touch the Camera panel.
+- Stop at the first thing that surprises you and send me what you see.
+
+Two things the app does that matter here
+- CLOSING A CHANGED IMAGE ASKS "Save changes to ...?" with Save / Discard / Cancel (even after you undid everything). Always click Discard. If you click Cancel
+  the image stays open, and the next part would start from a changed image.
+- THE FRAME SLIDER (under the picture, with "1/3" to its right) is awkward in this version: its handle has only three places, and a click in the groove or a
+  turn of the mouse wheel jumps to the last frame. Use the keyboard instead: click the slider once anywhere (this gives it the keyboard), then press
+    Home = frame 1,   End = frame 3,   Right / Left arrow = one frame forward / back.
+  Read the label ("1/3", "3/3") before every Ctrl+M. The Results table also has a Frame column.
+
+The Process > Filters > Gaussian Blur dialog has two boxes under the Sigma line: "Preview" (top) and "Process entire stack" (below it; only on an image with
+more than one frame). A ticked box shows a check mark; an unticked box is an empty square. Preview stays UNTICKED in every step of this test.
+
+
+PART 1 - Ctrl+Z on a single image (about 5 minutes)
+---------------------------------------------------
+
+1a. File > Open (Ctrl+O) ~/imagepi-test/cells_gray.png. Analyze > Show Results. In the Results panel click Clear (the status at its right says "0 rows").
+1b. Analyze > Measure (Ctrl+M).                                                     -> row 1 (the original)
+1c. Process > Filters > Gaussian Blur..., Sigma 10, Preview unticked, OK.            The picture is visibly blurred.
+    Ctrl+M.                                                                          -> row 2 (StdDev lower than row 1)
+1d. Click once on the picture (do not drag). Press Ctrl+Z.                            Is the picture sharp again? Write "yes" or "no".
+    Ctrl+M.                                                                          -> row 3. It must be IDENTICAL to row 1 (same Mean and StdDev, every digit).
+1e. Press Ctrl+Shift+Z (redo).                                                        The picture is blurred again? Write "yes" or "no".
+    Ctrl+M.                                                                          -> row 4. It must be IDENTICAL to row 2.
+1f. Press Ctrl+Z (sharp again, no Measure). Now two filters in a row:
+    Gaussian Blur..., Sigma 5, OK, Ctrl+M.                                           -> row 5 (blurred once)
+    Gaussian Blur..., Sigma 5, OK, Ctrl+M.                                           -> row 6 (blurred twice: StdDev lower than row 5)
+    Ctrl+Z, Ctrl+M.                                                                  -> row 7. It must be IDENTICAL to row 5 (one step back, not all the way).
+    Ctrl+Z, Ctrl+M.                                                                  -> row 8. It must be IDENTICAL to row 1.
+    (On the Mac: row 1 Mean 175.5469 StdDev 26.3119; row 2 175.5556 / 23.0006; row 5 175.5503 / 25.2164; row 6 175.5553 / 24.3840. Yours may differ in the last
+    digits; what counts is which rows are identical.)
+1g. Does Ctrl+Z work when the keyboard is in the Results table?
+    Gaussian Blur..., Sigma 10, OK (picture blurred). Click on a row of the Results table. Press Ctrl+Z.   Is the picture sharp again? "yes" or "no".
+1h. Does the menu work? Gaussian Blur..., Sigma 10, OK (blurred). Edit > Undo with the mouse.             Is the picture sharp again? "yes" or "no".
+1i. Press Ctrl+W, and when it asks "Save changes to cells_gray.png?" click Discard.
+Save the table: Results panel "Save CSV...", and send me the file's text (8 rows), with your yes/no answers for 1d, 1e, 1g and 1h.
+
+
+PART 2 - the stack, box TICKED (about 5 minutes)
+------------------------------------------------
+
+2a. File > Open ~/imagepi-test/cells_stack.tif (3 frames; StdDev about 39 in each). In the Results panel click Clear ("0 rows").
+2b. The label under the picture says "1/3". Gaussian Blur..., Sigma 3, leave Preview unticked, click "Process entire stack" so it shows a check mark.
+    WRITE DOWN what the two boxes look like at this moment: Preview [ticked / not ticked], Process entire stack [ticked / not ticked]. Then OK.
+2c. Click the slider once, press Home (label 1/3), Ctrl+M. Press End (label 3/3), Ctrl+M.      -> rows 1 and 2.
+    My expectation: StdDev about 3.8 in both rows (both frames blurred).
+2d. Press Ctrl+Z. Press Home, Ctrl+M. Press End, Ctrl+M.                                         -> rows 3 and 4.
+    My expectation: StdDev about 39.2 and 39.3 (both frames back to the original).
+2e. Press Ctrl+W, click Discard. Save CSV... and send me the file's text (4 rows) with what you wrote down in 2b.
+
+
+PART 3 - the stack, box UNTICKED, working on frame 3 (about 5 minutes)
+----------------------------------------------------------------------
+
+3a. File > Open ~/imagepi-test/cells_stack.tif again (it must be a fresh copy: the old one was closed with Discard). In the Results panel click Clear ("0 rows").
+3b. Click the slider once and press End: the label says "3/3". Gaussian Blur..., Sigma 3, Preview unticked, Process entire stack UNTICKED (an empty square).
+    WRITE DOWN: Preview [ticked / not ticked], Process entire stack [ticked / not ticked]. Then OK.
+3c. Press Home (label 1/3), Ctrl+M. Press End (label 3/3), Ctrl+M.                               -> rows 1 and 2.
+    My expectation: frame 1 StdDev about 39.2 (untouched), frame 3 about 3.8 (the one that was showing).
+3d. Press Ctrl+Z. Press Home, Ctrl+M. Press End, Ctrl+M.                                         -> rows 3 and 4.
+    My expectation: StdDev about 39.2 and 39.3 (both back to the original).
+3e. Press Ctrl+W, click Discard. Save CSV... and send me the file's text (4 rows) with what you wrote down in 3b.
+3f. Quit (File > Quit), then: grep -c Traceback ~/gui_c.log   (expect 0)
+
+
+What the results will tell me
+- Part 1 rows identical where stated and "yes" in 1d, 1e, 1g, 1h: Ctrl+Z, redo, the menu and Ctrl+Z from the Results table all work; any "no" or a
+  non-identical row says exactly which of them does not.
+- Part 2 as expected and Part 3 as expected: the box does what it says and Undo restores a whole stack; the first run's odd result was then a mix-up between
+  the two boxes or a missed Undo, and the app needs no fix, only clearer feedback (I would put "all 3 frames" / "frame 3 of 3 only" in the status line).
+- Part 2 or 3 not as expected: I get the boxes as you saw them (your written note), the frame labels and the numbers, so I can see whether the box state
+  or the app is at fault.
+
+
+What to send back
+-----------------
+- Part 1: the 8-row CSV text and the yes/no answers for 1d, 1e, 1g, 1h (and whether the "Save changes" question appeared in 1i).
+- Part 2: the 4-row CSV text and the box note from 2b. Part 3: the 4-row CSV text and the box note from 3b.
+- The grep count from 3f, and anything that looked different from what these steps say.
