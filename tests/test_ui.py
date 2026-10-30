@@ -397,8 +397,8 @@ def test_undo_and_redo_say_what_they_did(win, qtbot, blobs):
 
 
 def _stack_slider(win, qtbot, frames=3):
-    """A stack open in the window; returns (doc, view, slider, env) where env describes the Qt setup for failure messages: the first test
-    run on the Pi (test6 A2) failed one of these checks and `tail -5` did not show which, so each check names itself and its environment."""
+    """A stack open in the window; returns (doc, view, slider, env) where env describes the Qt setup for failure messages. The first run on
+    the Pi (test6 A2) failed the click check and the summary line, cut at 80 columns, hid why: keep the names short and say the facts first."""
     from PySide6.QtWidgets import QApplication
 
     a = np.random.default_rng(0).integers(0, 255, (frames, 30, 40), dtype=np.uint8)
@@ -407,24 +407,33 @@ def _stack_slider(win, qtbot, frames=3):
     qtbot.waitUntil(v.slider.isVisible)
     sl = v.slider
     app = QApplication.instance()
-    env = (f"[style {app.style().objectName()}, slider {sl.width()}x{sl.height()}, pageStep {sl.pageStep()}, "
-           f"wheelScrollLines {app.wheelScrollLines()}]")
+    env = (f"[{app.style().objectName()} style, slider {sl.width()}x{sl.height()}, pageStep {sl.pageStep()}, "
+           f"wheelScrollLines {app.wheelScrollLines()}, dpr {sl.devicePixelRatioF():g}]")
     return doc, v, sl, env
 
 
-def test_frame_slider_click_in_the_groove_moves_one_frame(win, qtbot):
+def _groove_centre(sl):
+    """The middle of the slider's groove as the style itself places it. The first version clicked at height // 2, which was the groove's
+    last pixel row on the Mac: a one pixel layout difference elsewhere would miss it, and nobody clicks the edge of a groove."""
+    from PySide6.QtWidgets import QStyle, QStyleOptionSlider
+
+    opt = QStyleOptionSlider()
+    sl.initStyleOption(opt)
+    return sl.style().subControlRect(QStyle.ComplexControl.CC_Slider, opt, QStyle.SubControl.SC_SliderGroove, sl).center()
+
+
+def test_slider_click_one_frame(win, qtbot):
     """test5 C1: with the default page step of 10 a click in the groove of a 3-frame slider jumped to the last frame, so frame 2 could
     not be reached with the mouse."""
-    from PySide6.QtCore import QPoint
-
     doc, v, sl, env = _stack_slider(win, qtbot)
-    assert sl.pageStep() == 1, f"page step is {sl.pageStep()} {env}"
-    QTest.mouseClick(sl, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(sl.width() // 2, sl.height() // 2))
-    assert doc.plane == 1, f"a click in the middle of the groove went to frame {doc.plane + 1}, wanted 2 {env}"
-    assert v.frame_label.text() == "2/3", f"label says {v.frame_label.text()} {env}"
+    assert sl.pageStep() == 1, f"got {sl.pageStep()}, want 1 (page step) {env}"
+    at = _groove_centre(sl)
+    QTest.mouseClick(sl, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at)
+    assert doc.plane == 1, f"got {doc.plane + 1}, want 2 (frame after a click at {at.x()},{at.y()}) {env}"
+    assert v.frame_label.text() == "2/3", f"got {v.frame_label.text()}, want 2/3 (label) {env}"
 
 
-def test_frame_slider_wheel_moves_one_frame(win, qtbot):
+def test_slider_wheel_one_frame(win, qtbot):
     """One notch of the mouse wheel was three steps, bounded by the page step of 10, so it went to the last frame of a short stack."""
     from PySide6.QtCore import QPoint
     from PySide6.QtGui import QWheelEvent
@@ -437,17 +446,17 @@ def test_frame_slider_wheel_moves_one_frame(win, qtbot):
         QApplication.sendEvent(sl, QWheelEvent(pos, pos, QPoint(0, 0), QPoint(0, delta), Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
                                                Qt.ScrollPhase.NoScrollPhase, False))
     notch(120)
-    assert sl.value() == 2, f"one wheel notch up from frame 1 gave frame {sl.value()}, wanted 2 {env}"
+    assert sl.value() == 2, f"got {sl.value()}, want 2 (frame after wheel up from 1) {env}"
     notch(-120)
-    assert sl.value() == 1, f"one wheel notch down from frame 2 gave frame {sl.value()}, wanted 1 {env}"
+    assert sl.value() == 1, f"got {sl.value()}, want 1 (frame after wheel down from 2) {env}"
 
 
-def test_frame_slider_shows_ticks_for_short_stacks(win, qtbot):
+def test_slider_ticks_short_stacks(win, qtbot):
     """With only a few frames the handle sits in a few places and jumps between them, so they are marked; a long stack has no ticks."""
     from PySide6.QtWidgets import QSlider
 
     doc, v, sl, env = _stack_slider(win, qtbot)
-    assert sl.tickPosition() == QSlider.TickPosition.TicksBelow, f"3 frames, tick position {sl.tickPosition()} {env}"
+    assert sl.tickPosition() == QSlider.TickPosition.TicksBelow, f"got {sl.tickPosition()}, want TicksBelow (3 frames) {env}"
     win.add_doc(ImageDoc(np.zeros((100, 8, 8), np.uint8), "long", rgb=False))
     assert win.current_view().slider.tickPosition() == QSlider.TickPosition.NoTicks, "100 frames should have no ticks"
 
