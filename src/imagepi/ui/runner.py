@@ -151,7 +151,7 @@ class OpRunner(QObject):
             # no newer one has arrived, so a drag whose previews take longer than the throttle keeps updating.
             if gen >= self._floor:
                 self._floor = gen + 1
-                canvas.set_preview(*res)
+                canvas.set_preview(res[0], res[1], region)
 
         job.signals.done.connect(done)
         job.signals.failed.connect(lambda msg: self.message.emit("Preview: " + msg))
@@ -169,12 +169,19 @@ class OpRunner(QObject):
         if isinstance(op, base.Filter):
             self._set_busy(True)
             t0 = time.monotonic()
+            n, shown = doc.n_frames, doc.plane + 1   # the frame the filter will work on if it is not asked for the whole stack
+            if n < 2:
+                where = ""
+            elif base.effective_stack(op, stack):
+                where = f", all {n} frames"
+            else:
+                where = f", frame {shown} of {n} only"   # a stack: say which frames changed, the dialog's box is easy to misread
             job = Job(lambda: base.compute_filter(op, doc, para, stack))
 
             def done(result):
                 try:
                     base.commit_filter(op, doc, result, session, para)
-                    self.message.emit(f"{op.title}: {time.monotonic() - t0:.2f} s")
+                    self.message.emit(f"{op.title}: {time.monotonic() - t0:.2f} s{where}")
                     self.op_finished.emit(None)
                 finally:
                     self._set_busy(False)

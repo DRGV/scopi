@@ -44,6 +44,8 @@ class ImageView(QWidget):
         h = QHBoxLayout(row)
         h.setContentsMargins(6, 2, 6, 2)
         self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setPageStep(1)   # the default of 10 is more than a short stack: a click in the groove or one wheel notch jumped to the last frame
+        self.slider.setTickInterval(1)
         self.frame_label = QLabel()
         h.addWidget(self.slider, 1)
         h.addWidget(self.frame_label)
@@ -62,6 +64,8 @@ class ImageView(QWidget):
         self.row.setVisible(n > 1)
         self.slider.blockSignals(True)
         self.slider.setRange(1, max(n, 1))
+        # with only a few frames the handle can sit in a few places only and jumps between them: show where they are
+        self.slider.setTickPosition(QSlider.TickPosition.TicksBelow if 1 < n <= 60 else QSlider.TickPosition.NoTicks)
         self.slider.setValue(self.doc.plane + 1)
         self.slider.blockSignals(False)
         self.frame_label.setText(f"{self.doc.plane + 1}/{n}")
@@ -433,10 +437,22 @@ class MainWindow(QMainWindow):
 
     # ---------------------------------------------------------------- edit / image
     def undo(self) -> None:
-        self._with_doc(lambda d: d.undo())
+        self._undo_redo("Undo", "undo")
 
     def redo(self) -> None:
-        self._with_doc(lambda d: d.redo())
+        self._undo_redo("Redo", "redo")
+
+    def _undo_redo(self, verb: str, which: str) -> None:
+        """Undo or redo and say what happened in the status line (round 6: nobody could tell whether Ctrl+Z had done anything)."""
+        d = self.current_doc()
+        if d is None:
+            return
+        label = getattr(d, f"{which}_label")()
+        if label is None:
+            self.statusBar().showMessage(f"Nothing to {which}", 5000)
+            return
+        getattr(d, which)()
+        self.statusBar().showMessage(f"{verb}: {label}" if label else verb, 5000)
 
     def select_all(self) -> None:
         self._with_doc(lambda d: d.set_roi(Rect(0, 0, d.width, d.height)))

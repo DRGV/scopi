@@ -338,6 +338,146 @@ def test_stack_slider(win, qtbot):
     assert doc.plane == 2
 
 
+def _run_filter(win, qtbot, path, *, tick=None, plane=None, doc=None):
+    """Run an op through the real dialog (stack box ticked / unticked / absent), wait for it, return the status line."""
+    def steps(dlg):
+        if tick is not None:
+            assert dlg.stack_box.isVisibleTo(dlg), "the stack box should be offered on a stack"
+            dlg.stack_box.setChecked(tick)
+        dlg.accept()
+    check = _drive_dialog(qtbot, steps)
+    win.runner.run(base.REGISTRY[path])
+    check()
+    wait_idle(qtbot, win)
+    return win.statusBar().currentMessage()
+
+
+def test_status_line_says_which_frames_a_filter_changed(win, qtbot, blobs):
+    """test5 part C was ambiguous because the status line only said 'Gaussian Blur: 0.06 s'. On a stack it now says which frames changed,
+    and it reports what really happened: a thresholding op converts every frame whatever the box says."""
+    import re
+
+    gauss = "Process>Filters>Gaussian Blur"
+    a = np.random.default_rng(0).integers(0, 255, (3, 40, 50), dtype=np.uint8)
+    doc = win.add_doc(ImageDoc(a.copy(), "s", rgb=False))
+    doc.set_plane(1)
+    assert re.fullmatch(r"Gaussian Blur: \d+\.\d\d s, frame 2 of 3 only", _run_filter(win, qtbot, gauss, tick=False))
+    assert re.fullmatch(r"Gaussian Blur: \d+\.\d\d s, all 3 frames", _run_filter(win, qtbot, gauss, tick=True))
+    msg = _run_filter(win, qtbot, "Image>Adjust>Auto Threshold", tick=False)         # changes the pixel type: every frame, box or not
+    assert msg.endswith(", all 3 frames"), msg
+    assert all(doc.data[i].dtype == np.uint8 and set(np.unique(doc.data[i])) <= {0, 255} for i in range(3))
+
+    win.add_doc(ImageDoc(blobs, "single"))                                             # one frame: nothing to say about frames
+    assert re.fullmatch(r"Gaussian Blur: \d+\.\d\d s", _run_filter(win, qtbot, gauss))
+
+
+def test_undo_and_redo_say_what_they_did(win, qtbot, blobs):
+    """test5c: Ctrl+Z worked, but nothing on screen said so. The status line now names the step, and says when there is none."""
+    doc = win.add_doc(ImageDoc(blobs.copy(), "a"))
+    bar = win.statusBar()
+    assert doc.undo_label() is None and doc.redo_label() is None
+    win.undo()
+    assert bar.currentMessage() == "Nothing to undo"
+    win.redo()
+    assert bar.currentMessage() == "Nothing to redo"
+    _run_filter(win, qtbot, "Process>Filters>Gaussian Blur")
+    assert doc.undo_label() == "Gaussian Blur" and not np.array_equal(doc.data[0], blobs)
+    win.undo()
+    assert bar.currentMessage() == "Undo: Gaussian Blur" and np.array_equal(doc.data[0], blobs)
+    assert doc.undo_label() is None and doc.redo_label() == "Gaussian Blur"
+    win.undo()
+    assert bar.currentMessage() == "Nothing to undo"
+    win.redo()
+    assert bar.currentMessage() == "Redo: Gaussian Blur" and not np.array_equal(doc.data[0], blobs)
+    win.redo()
+    assert bar.currentMessage() == "Nothing to redo"
+    doc.snapshot("")                                                                   # an unnamed step still reports itself
+    win.undo()
+    assert bar.currentMessage() == "Undo"
+
+
+def test_frame_slider_steps_one_frame_at_a_time(win, qtbot):
+    """test5 C1: with the default page step of 10 a click in the groove of a 3-frame slider (and one wheel notch) jumped to the last
+    frame, so frame 2 could not be reached with the mouse; the handle also only moves between 3 places, so it shows ticks."""
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication, QSlider
+
+    a = np.random.default_rng(0).integers(0, 255, (3, 30, 40), dtype=np.uint8)
+    doc = win.add_doc(ImageDoc(a, "s", rgb=False))
+    v = win.current_view()
+    qtbot.waitUntil(v.slider.isVisible)
+    sl = v.slider
+    assert sl.pageStep() == 1 and sl.tickPosition() == QSlider.TickPosition.TicksBelow
+    QTest.mouseClick(sl, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(sl.width() // 2, sl.height() // 2))
+    assert doc.plane == 1 and v.frame_label.text() == "2/3"            # one step towards the click, not the end
+    sl.setValue(1)
+    pos = QPointF(sl.width() // 2, sl.height() // 2)
+    QApplication.sendEvent(sl, QWheelEvent(pos, pos, QPoint(0, 0), QPoint(0, 120), Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
+                                           Qt.ScrollPhase.NoScrollPhase, False))
+    assert sl.value() == 2                                              # one wheel notch, one frame
+    long = win.add_doc(ImageDoc(np.zeros((100, 8, 8), np.uint8), "long", rgb=False))
+    assert win.current_view().slider.tickPosition() == QSlider.TickPosition.NoTicks
+
+
+def test_preview_box_marks_a_partial_preview(win, qtbot):
+    """test5 B6: a preview works on a crop of at most 1200 x 1200 px, so on a big picture at Fit only the middle changes. The canvas must
+    say so (a frame), but not when the preview covers what is on screen, and not for a 1228 x 922 picture that misses only 13 px strips."""
+    from imagepi.ui.runner import PREVIEW_MAX
+
+    big = win.add_doc(ImageDoc(np.random.default_rng(1).integers(0, 255, (2600, 3400), dtype=np.uint8), "big", rgb=False))
+    c = win.current_canvas()
+    qtbot.waitUntil(c.isVisible)
+    op = base.REGISTRY["Process>Filters>Gaussian Blur"]()
+    assert c.preview_box() is None                                       # no preview, no box
+    v = c.view_rect()
+    region = preview_region(big, (v.left(), v.top(), v.right(), v.bottom()))
+    assert region[2] - region[0] <= PREVIEW_MAX + 1
+    plane, rng = compute_preview(op, big, {"sigma": 5.0}, region)
+    c.fit()
+    c.set_preview(plane, rng, region)
+    box = c.preview_box()
+    assert box is not None and (box.x(), box.y(), box.right(), box.bottom()) == (region[0], region[1], region[2], region[3])
+    c.viewport().grab()                                                  # painting it must not raise
+    c.set_scale(1.0, QPointF(big.width / 2, big.height / 2))
+    v = c.view_rect()
+    region = preview_region(big, (v.left(), v.top(), v.right(), v.bottom()))
+    c.set_preview(plane, rng, region)
+    assert c.preview_box() is None, "at 100 % the preview covers the visible picture"
+    c.set_preview(None)
+    assert c.preview_box() is None
+
+    small = win.add_doc(ImageDoc(np.random.default_rng(2).integers(0, 255, (922, 1228), dtype=np.uint8), "cam", rgb=False))
+    c2 = win.current_canvas()
+    qtbot.waitUntil(c2.isVisible)
+    c2.fit()
+    v = c2.view_rect()
+    region = preview_region(small, (v.left(), v.top(), v.right(), v.bottom()))
+    c2.set_preview(small.frame(), small.display_range, region)
+    assert c2.preview_box() is None, "a frame around nearly the whole picture is clutter"
+
+
+def test_stack_box_unticked_filters_only_the_current_frame(win, qtbot):
+    """test5 C2 came back with every frame filtered although the box should have been unticked. Through the real dialog an unticked box
+    must change only the shown frame (and Undo must restore it); the ticked case is test_process_entire_stack_is_honoured_by_run."""
+    a = np.random.default_rng(0).integers(0, 255, (3, 40, 50), dtype=np.uint8)
+    doc = win.add_doc(ImageDoc(a.copy(), "s", rgb=False))
+    doc.set_plane(1)
+
+    def steps(dlg):
+        assert dlg.stack_box.isVisibleTo(dlg) and not dlg.stack_box.isChecked()
+        dlg.accept()
+
+    check = _drive_dialog(qtbot, steps)
+    win.runner.run(base.REGISTRY["Process>Filters>Gaussian Blur"])
+    check()
+    wait_idle(qtbot, win)
+    assert np.array_equal(doc.data[0], a[0]) and np.array_equal(doc.data[2], a[2])
+    assert not np.array_equal(doc.data[1], a[1])
+    win.undo()
+    assert np.array_equal(doc.data[1], a[1])
+
+
 def test_display_panel_and_lut(win, qtbot, blobs):
     doc = win.add_doc(ImageDoc(blobs, "a"))
     dp = win.display_panel

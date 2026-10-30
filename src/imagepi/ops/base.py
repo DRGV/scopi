@@ -168,16 +168,22 @@ def menu_tree() -> dict:
     return tree
 
 
+def effective_stack(op: "Filter", stack: bool) -> bool:
+    """Whether ``compute_filter`` really processes every frame, whatever the dialog's "Process entire stack" box said.
+
+    Ops without the "stack" flag never do; ops that change the pixel type always do, or the stack would end up with mixed types."""
+    if "stack" not in op.note or op.out_dtype != "keep":
+        return op.out_dtype != "keep"
+    return stack
+
+
 def compute_filter(op: "Filter", doc, para: dict, stack: bool = False) -> np.ndarray:
     """Pure part of running a Filter: reads ``doc`` but never mutates it, so it is safe on a worker thread."""
     err = op.check(doc)
     if err:
         raise ValueError(err)
     mask = doc.roi_mask() if "auto_msk" in op.note else None
-    if "stack" not in op.note or op.out_dtype != "keep":
-        # ops that change dtype must convert every plane or the stack would be inconsistent
-        stack = op.out_dtype != "keep"
-    return op.run_doc(doc, op.full_para(para), stack, mask)
+    return op.run_doc(doc, op.full_para(para), effective_stack(op, stack), mask)
 
 
 def commit_filter(op: "Filter", doc, result: np.ndarray, session=None, para: dict | None = None, record: bool = True) -> None:

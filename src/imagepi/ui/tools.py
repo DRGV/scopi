@@ -86,6 +86,13 @@ class OvalTool(_BoxTool):
     name, shape = "oval", Ellipse
 
 
+# Unit vectors of the eight 45 degree steps (image coordinates, y down), with exact zeros: cos(pi) and sin(pi) carry rounding errors
+# of 1e-16, which moved the end of a "level" line off the level and made its Angle read 180 or -180 depending on which side
+# of the line the pointer was (test5 D2).
+_H = math.sqrt(0.5)
+_SNAP = [(1.0, 0.0), (_H, _H), (0.0, 1.0), (-_H, _H), (-1.0, 0.0), (-_H, -_H), (0.0, -1.0), (_H, -_H)]
+
+
 class LineTool(Tool):
     name = "line"
 
@@ -100,9 +107,9 @@ class LineTool(Tool):
     def _end(self, x, y, shift):
         ax, ay = self._a
         if shift:  # snap to 45 degree steps
-            ang = round(math.atan2(y - ay, x - ax) / (math.pi / 4)) * (math.pi / 4)
+            cx, cy = _SNAP[round(math.atan2(y - ay, x - ax) / (math.pi / 4)) % 8]
             d = math.hypot(x - ax, y - ay)
-            return ax + d * math.cos(ang), ay + d * math.sin(ang)
+            return ax + d * cx, ay + d * cy
         return x, y
 
     def move(self, x, y, shift=False):

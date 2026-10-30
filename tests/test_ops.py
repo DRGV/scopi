@@ -503,3 +503,19 @@ def test_median_large_kernel_all_dtypes(session):
         d = ImageDoc(arr)
         run(session, d, "Process>Filters>Median", radius=6)
         assert np.array_equal(d.data[0], ndi.median_filter(arr, size=13, mode="nearest"))
+
+
+def test_effective_stack_matches_what_compute_filter_does():
+    """The status line reports ``effective_stack``; it must agree with the frames compute_filter really changes."""
+    a = np.random.default_rng(3).integers(0, 255, (3, 30, 40), dtype=np.uint8)
+    doc = ImageDoc(a.copy(), rgb=False)
+    doc.set_plane(1)
+    gauss, thr = base.REGISTRY["Process>Filters>Gaussian Blur"](), base.REGISTRY["Image>Adjust>Auto Threshold"]()
+    assert not base.effective_stack(gauss, False) and base.effective_stack(gauss, True)
+    assert base.effective_stack(thr, False) and base.effective_stack(thr, True), "a pixel-type change always converts every frame"
+    out = base.compute_filter(gauss, doc, {"sigma": 2.0}, stack=False)
+    assert [not np.array_equal(out[i], a[i]) for i in range(3)] == [False, True, False]
+    out = base.compute_filter(gauss, doc, {"sigma": 2.0}, stack=True)
+    assert all(not np.array_equal(out[i], a[i]) for i in range(3))
+    out = base.compute_filter(thr, doc, {"method": "Otsu", "objects": "bright"}, stack=False)
+    assert out.shape[0] == 3 and all(set(np.unique(out[i])) <= {0, 255} for i in range(3))

@@ -28,6 +28,35 @@ def test_rect_drag_normalises():
     assert c.roi == Rect(20, 10, 30, 30) and not t.busy
 
 
+def test_line_shift_snaps_to_exact_angles_whichever_side_the_pointer_ends():
+    """test5 D2: a Shift-dragged line right to left read 180 or -180 depending on whether the pointer ended above or below it,
+    because cos(pi)/sin(pi) carry 1e-16 rounding errors. The snapped end point must be exactly on the 45 degree step."""
+    import random
+
+    rng = random.Random(7)
+    t, c = mk("line")
+    wanted = {"right": (1, 0, 0.0), "left": (-1, 0, 180.0), "up": (0, -1, 90.0), "down": (0, 1, -90.0), "up-right": (1, -1, 45.0),
+              "down-left": (-1, 1, -135.0)}
+    for _ in range(300):
+        ax, ay = rng.uniform(50, 4800), rng.uniform(50, 3600)
+        for name, (sx, sy, deg) in wanted.items():
+            along = rng.uniform(40, 900)
+            off = rng.uniform(-8, 8)                                     # the pointer is a little off the exact direction, either way
+            ex = ax + sx * along + (off if sx == 0 else 0)
+            ey = ay + sy * along + (off if sy == 0 else 0)
+            t.press(ax, ay)
+            t.move(ex, ey, True)
+            t.release(ex, ey, True)
+            if sx == 0 or sy == 0:
+                assert c.roi.angle() == deg, (name, c.roi.angle())       # exact: this is where 180 / -180 and -0.0 came from
+            else:
+                assert c.roi.angle() == pytest.approx(deg), (name, c.roi.angle())   # diagonals involve sqrt(1/2)
+    t.press(10.0, 10.0)
+    t.move(60.0, 10.0, True)
+    t.release(60.0, 10.0, True)
+    assert str(c.roi.angle()) == "0.0"                                   # not -0.0
+
+
 def test_rect_shift_square_and_click_clears():
     t, c = mk("rect")
     t.press(0, 0); t.move(30, 10, True); t.release(30, 10, True)

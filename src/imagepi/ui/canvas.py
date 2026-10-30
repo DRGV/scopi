@@ -126,6 +126,7 @@ class ImageCanvas(QGraphicsView):
         self._pan_last = QPointF()
         self._space = False
         self._override: tuple[np.ndarray, tuple[float, float]] | None = None
+        self._override_region: tuple[int, int, int, int] | None = None   # (x0, y0, x1, y1) the preview was computed on
         self._override_token = 0
         self._items: list[QGraphicsItem] = []
         self._preview_item: QGraphicsItem | None = None
@@ -166,14 +167,36 @@ class ImageCanvas(QGraphicsView):
         return d.frame(), d.display_range, (id(d), d.version, d.plane)
 
     # ------------------------------------------------------------ preview override
-    def set_preview(self, plane: np.ndarray | None, display_range: tuple[float, float] | None = None) -> None:
-        """Show ``plane`` instead of the document's current plane (live preview). None restores."""
+    def set_preview(self, plane: np.ndarray | None, display_range: tuple[float, float] | None = None,
+                    region: tuple[int, int, int, int] | None = None) -> None:
+        """Show ``plane`` instead of the document's current plane (live preview). None restores.
+
+        ``region`` (x0, y0, x1, y1) is the part of the plane the preview was computed on; when it leaves some of the visible
+        picture out, a frame is drawn around it (see ``preview_box``)."""
         if plane is None:
             self._override = None
+            self._override_region = None
         else:
             self._override = (plane, display_range or self.doc.display_range)
+            self._override_region = region
             self._override_token += 1
         self.viewport().update()
+
+    def preview_box(self) -> QRectF | None:
+        """The previewed area in image coordinates if it leaves out more than 5 % of the picture on screen, else None.
+
+        A preview only works on a crop of at most PREVIEW_MAX pixels a side, so on a big picture at low zoom most of it stays
+        unfiltered until OK; test5 B6 asked for that area to be shown. A 1228 x 922 picture at Fit misses only a strip of 13 px
+        at each side, and a frame around nearly everything would just be clutter."""
+        if self._override is None or self._override_region is None:
+            return None
+        x0, y0, x1, y1 = self._override_region
+        box = QRectF(x0, y0, x1 - x0, y1 - y0)
+        seen = self.view_rect().intersected(QRectF(0, 0, self.doc.width, self.doc.height))
+        covered = box.intersected(seen)
+        if seen.isEmpty() or covered.width() * covered.height() >= 0.95 * seen.width() * seen.height():
+            return None
+        return box
 
     # ------------------------------------------------------------ view transform
     @property
@@ -255,7 +278,30 @@ class ImageCanvas(QGraphicsView):
         painter.drawImage(0, 0, img)
         painter.restore()
 
+    def _draw_preview_box(self, painter: QPainter) -> None:
+        box = self.preview_box()
+        if box is None:
+            return
+        r = self.mapFromScene(box).boundingRect().adjusted(0, 0, -1, -1)
+        painter.save()
+        painter.resetTransform()
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor(0, 0, 0, 220), 3))                        # dark under light: visible on any picture
+        painter.drawRect(r)
+        pen = QPen(QColor(255, 255, 255), 1, Qt.PenStyle.DashLine)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        painter.drawRect(r)
+        f = QFont(painter.font())
+        f.setBold(True)
+        painter.setFont(f)
+        for col, off in ((QColor(0, 0, 0), 1), (QColor(255, 255, 255), 0)):
+            painter.setPen(col)
+            painter.drawText(QPointF(r.left() + 6 + off, r.top() + 16 + off), "Preview area")
+        painter.restore()
+
     def drawForeground(self, painter: QPainter, rect: QRectF) -> None:
+        self._draw_preview_box(painter)
         cal = self.doc.calibration
         if not (self.show_scale_bar and cal.calibrated):
             return

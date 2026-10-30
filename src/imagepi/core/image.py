@@ -148,6 +148,13 @@ class ImageDoc:
     def can_undo(self) -> bool:
         return bool(self._undo)
 
+    def undo_label(self) -> str | None:
+        """Name of the change Undo would take back (None: nothing to undo), so the window can say what it did."""
+        return self._undo[-1][0] if self._undo else None
+
+    def redo_label(self) -> str | None:
+        return self._redo[-1][0] if self._redo else None
+
     def undo(self) -> bool:
         if not self._undo:
             return False
