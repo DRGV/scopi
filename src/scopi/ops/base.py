@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Operation framework: declarative parameters, filters, ROI masking, registry.
 
 Ideas ported from ImagePy: each op declares ``view`` (parameters, from which dialogs are

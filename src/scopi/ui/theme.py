@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Light/dark theme and touch-friendly sizing (HiDPI scaling itself is handled by Qt6)."""
 
 from __future__ import annotations

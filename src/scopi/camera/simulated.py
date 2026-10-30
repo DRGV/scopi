@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Simulated camera: synthetic microscope scene, or replay of a folder of images/video."""
 
 from __future__ import annotations

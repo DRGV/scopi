@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """ToupTek / OMAX camera backend (OMAX A35180U3 and other ToupTek USB cameras).
 
 Wraps the vendor's single-file ctypes wrapper ``toupcam.py`` which is *not* shipped with Scopi

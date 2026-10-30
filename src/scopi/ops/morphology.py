@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Binary/grayscale morphology (Process > Morphology)."""
 
 from __future__ import annotations

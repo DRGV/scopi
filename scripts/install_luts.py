@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Copy Fiji/ImageJ LUT files into the user LUT folder (~/.scopi/luts) so Scopi lists them.
 
     python scripts/install_luts.py references/fiji/luts

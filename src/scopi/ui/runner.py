@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Runs ops from the GUI: parameter dialog, live preview on a crop, background compute, commit."""
 
 from __future__ import annotations

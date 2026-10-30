@@ -22,7 +22,7 @@ How to install Scopi, start it, open images, connect the microscope camera and t
 | | |
 |---|---|
 | Computer | A Raspberry Pi 5 (Raspberry Pi OS **Trixie**, 64-bit, Python 3.13) is the target. Any Mac or Linux computer with Python 3.12 or newer works for viewing, processing and developing. |
-| Camera (optional) | The **OMAX 18 MP USB 3.0 C-mount camera (A35180U3)**, which is a ToupTek `U3CMOS18000KPA`. It is the only camera that has been tested. Plug it into a **USB 3 (blue) port**. Without it everything except the live camera works, and a simulated camera is built in for trying the camera panel. |
+| Camera (optional) | The **OMAX 18 MP USB 3.0 C-mount camera (A35180U3)**, which is a ToupTek `U3CMOS18000KPA`. It is the only camera that has been tested (see [Other cameras](#other-cameras)). Plug it into a **USB 3 (blue) port**. Without it everything except the live camera works, and a simulated camera is built in for trying the camera panel. |
 | Camera SDK | The ToupTek SDK (`toupcamsdk*.zip`) is the vendor's software and is **not** included in this repository; download it from the [OMAX software page](https://omaxmicroscope.com/pages/software-download) or from ToupTek. Only the camera needs it. |
 | Network | The installer downloads several hundred MB of Python packages (PySide6 alone is about 260 MB). On a slow link it can take several minutes; it retries by itself. |
 | Python packages | Listed in [requirements.txt](requirements.txt). The installers below take care of them. |
@@ -210,6 +210,22 @@ last frame. A frame is skipped if the previous one is still being captured.
 ### Disconnecting
 
 Click **Disconnect**, or just unplug the camera; Scopi notices and stops the live view. Quit Scopi before running any camera script.
+
+### Other cameras
+
+Scopi has been tested with one camera, the OMAX A35180U3. Other cameras that use the same ToupTek SDK should work too: OMAX and ToupTek models, and any brand whose
+own software is ToupView or ToupLite. Scopi reads the resolutions, pixel size, exposure and gain ranges and bit depths from the SDK, and the USB permission rule is the
+SDK's own. But nothing else has been tried, so check each new camera:
+
+1. Plug it in, click **Refresh**, **Connect** and **Start live view** as above.
+2. **Check the orientation** against the eyepiece. Scopi assumes ToupTek frames arrive upside down, which was measured on one model only. If the live view is wrong,
+   tick **Flip horizontally** or **Flip vertically**. If a crop lands in the wrong place, close Scopi and run `.venv/bin/python scripts/pi_bringup.py roitest` with a
+   still, textured slide in focus (lens tissue works). The OMAX A35180U3 prints `RESULT: horizontal ['as'] vertical ['MIRRORED']`, which is what Scopi assumes; a
+   different result means that model needs a different `delivered_flip` in `src/scopi/camera/touptek.py` (a one-line change that applies to every ToupTek camera).
+3. **Calibrate its objectives again under new names.** Objective presets are stored by name and are not tied to a camera, so a `10x` made with one camera gives wrong
+   sizes on another (the pixel size differs). Name them per camera, such as `10x-cam2`, and choose the right one in the **Objective** list.
+4. Not handled or never tried: monochrome cameras (no special handling), cooling controls on cooled cameras (not offered), bit depths above 8 (the code exists but the
+   OMAX has none), models without a hardware crop (not checked), and ToupTek's UVC-class cameras (not supported by this driver; the generic USB (V4L2) fallback might work).
 
 ## 9. Where Scopi keeps things
 

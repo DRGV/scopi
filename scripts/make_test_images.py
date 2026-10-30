@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Write test images for the GUI checks on the Pi (no camera needed).
 
     python scripts/make_test_images.py [folder]        # default ~/scopi-test

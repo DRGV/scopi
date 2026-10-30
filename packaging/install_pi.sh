@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 # Install Scopi on Raspberry Pi OS Trixie (Python 3.13, aarch64).
 #   bash packaging/install_pi.sh [path/to/toupcamsdk.zip-or-folder]
 # Run it as your normal user, not with sudo: it calls sudo itself for apt and the udev rule, and the

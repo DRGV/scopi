@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Camera live view: controller (threads, snap, time-lapse) and the dock panel.
 
 Threading: the backend's frame notification fires on an SDK thread and only emits a Qt signal.

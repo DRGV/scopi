@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Measurement and analysis (Analyze menu)."""
 
 from __future__ import annotations

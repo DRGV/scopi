@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Plugin discovery: ``scopi.plugins`` entry points plus ``*_plg.py`` files in plugin folders.
 
 A plugin module registers ops by importing ``scopi.ops.register`` and decorating Op subclasses.

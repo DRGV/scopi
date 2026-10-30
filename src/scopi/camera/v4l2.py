@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """OpenCV (V4L2 / AVFoundation) fallback for generic UVC cameras."""
 
 from __future__ import annotations

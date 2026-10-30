@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Main window: tabbed images, menus generated from the op registry, docks and toolbar."""
 
 from __future__ import annotations
@@ -591,7 +593,9 @@ class MainWindow(QMainWindow):
         theme.apply_theme(QApplication.instance(), self.settings.value("theme", "auto"), on)
 
     def about(self) -> None:
-        QMessageBox.about(self, "Scopi", "Scopi\nMicroscope image viewing and processing for the Raspberry Pi 5.")
+        QMessageBox.about(self, "Scopi", "Scopi\nMicroscope image viewing and processing for the Raspberry Pi 5.\n\n"
+                          "Copyright (C) 2026 Dwight Vieira\n"
+                          "Free software under the GNU General Public License, version 3 or (at your option) any later version. See the LICENSE file.")
 
     def _restore(self) -> None:
         g = self.settings.value("geometry")

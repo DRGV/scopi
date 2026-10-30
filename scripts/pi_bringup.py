@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Milestone 0 spike: verify the Pi 5 stack and measure what the plan lists as unverified risks.
 
     python scripts/pi_bringup.py check            # wheels import, glibc, Qt platform plugins

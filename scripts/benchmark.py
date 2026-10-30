@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Performance / memory check for large images. Run on the Pi 5 (and the dev Mac for comparison).
 
     python scripts/benchmark.py [--width 4912 --height 3684] [--rgb] [--bits 16]

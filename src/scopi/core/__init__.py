@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 from .calibration import Calibration
 from .image import ImageDoc
 from .manager import Manager

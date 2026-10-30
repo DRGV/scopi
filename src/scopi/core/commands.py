@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Macro recording and replay.
 
 A macro line is ``Menu>Item{json}`` where the menu/item path is the op's full title

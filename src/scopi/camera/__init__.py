@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 from .base import CameraBackend, CameraError, CameraInfo, PermissionDenied, Range
 from .simulated import SimulatedCamera
 

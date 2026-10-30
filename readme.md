@@ -65,7 +65,7 @@ computer for viewing and processing pictures.
 | Camera | OMAX 18 MP USB 3.0 C-mount camera A35180U3 (ToupTek `U3CMOS18000KPA`): **the only camera tested** |
 | Calibration | Checked with a 0.01 mm stage micrometer at 4x, 10x and 40x: known distances of 0.2 to 0.5 mm read within about 0.1 % |
 | Development | macOS (Apple silicon), Python 3.13 |
-| Automated tests | 212 tests (`pytest`), all passing on the Mac; the Qt tests run without a display. The 204 that existed before the rename to Scopi all passed on the Pi; the rename itself has not been run there yet |
+| Automated tests | 214 tests (`pytest`), all passing on the Mac; the Qt tests run without a display. The 204 that existed before the rename to Scopi all passed on the Pi; the rename itself has not been run there yet |
 | Not tested | The V4L2 fallback camera and DICOM files (no device and no `pydicom` on the test machines) |
 
 The history of what was tested, found and fixed on the Pi is in [documents/implementation.md](documents/implementation.md).
@@ -89,7 +89,7 @@ bash packaging/install_pi.sh /path/to/toupcamsdk.zip                           #
 | `scripts/` | Helpers: Pi bring-up and diagnostics, benchmark, test images, camera SDK and LUT installers |
 | `packaging/` | Raspberry Pi installer, desktop launcher, USB permission rule for the camera |
 | `documents/` | [Implementation notes and reference material](documents/implementation.md) and the [Raspberry Pi test plans](documents/pi-test-plans) |
-| `usage.md`, `requirements.txt`, `pyproject.toml` | Usage guide, Python packages, project metadata |
+| `LICENSE`, `usage.md`, `requirements.txt`, `pyproject.toml` | The GPL-3.0 license text, usage guide, Python packages, project metadata |
 | `vendor/` | Where the camera SDK is installed on your machine (not in the repository; see below) |
 
 ## Thanks
@@ -147,5 +147,15 @@ ToupLite program (an x86-64 installer on the same page) is not needed and does n
 
 ## License
 
-Scopi's own license has **not been chosen yet**: there is no `LICENSE` file in the repository, so for now the code is not licensed for reuse. If you want to
-use or build on it, please contact the repository owner (GitHub user `DRGV`). The third-party licenses above apply to the packages named there, not to Scopi.
+Copyright (C) 2026 Dwight Vieira
+
+Scopi is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later version** (SPDX: `GPL-3.0-or-later`). It is distributed in the hope that it will be
+useful, but **without any warranty**, without even the implied warranty of merchantability or fitness for a particular purpose. The full text is in
+[LICENSE](LICENSE); a plain-language summary is at [gnu.org/licenses/gpl-3.0](https://www.gnu.org/licenses/gpl-3.0.html). You may use, study, share and change
+Scopi. If you distribute it, or a version you have changed, you must do so under the same license and make the source available. Every source file carries a
+short notice with the license identifier and the copyright line.
+
+The packages in the table above keep their own licenses. They are permissive (BSD, MIT, Apache-2.0, PSF) or LGPL licenses, which can be combined with GPL version 3
+code; this is a summary, not legal advice. The **ToupTek camera SDK** is separate proprietary software: you download it yourself, Scopi loads it at run time and it is
+not distributed with Scopi, so it is not covered by the GPL.

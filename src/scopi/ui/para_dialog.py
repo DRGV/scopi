@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Parameter dialog generated from an op's declarative ``view``."""
 
 from __future__ import annotations

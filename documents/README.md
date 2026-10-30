@@ -93,7 +93,7 @@ real wrapper (it rejects the wrong argument types), which found a real bug once:
 
 ```
 .venv/bin/python -m pip install -e ".[test]"
-QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q      # 212 tests, about 15 seconds; the Qt tests run without a window
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q      # 214 tests, about 15 seconds; the Qt tests run without a window
 ```
 
 `tests/test_ui.py` drives the real windows. When you test a dialog, go through the real entry point (`OpRunner.run` with a modal dialog) and not by calling the
@@ -102,6 +102,7 @@ callback directly: that is how a Preview box that was never connected stayed hid
 
 ### Things that will bite you
 
+- Scopi is GPL-3.0-or-later, so code you add must be compatible with it, and a new source file starts with the same two notice lines as the others (`# SPDX-License-Identifier: GPL-3.0-or-later` and `# Copyright (C) 2026 Dwight Vieira`, or the name of the author of the new file). Permissive and LGPL code is; ImagePy's four-clause license is not, and the ToupTek SDK is proprietary: never copy either into the repository.
 - Use `opencv-python-headless`, never `opencv-python` (its bundled Qt stops PySide6 from loading).
 - `QWidget.isVisible()` is false for everything in a dialog that is not on screen; use `isVisibleTo(dialog)`.
 - The ToupTek SDK is vendor software: do not commit it. `vendor/` is git-ignored.

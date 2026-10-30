@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Image canvas: QGraphicsView whose background is the rendered viewport.
 
 The scene is in image-pixel coordinates (pixel i spans [i, i+1)). Pixels are produced by the

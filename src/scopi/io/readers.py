@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Image readers. Each returns an ImageDoc with calibration/metadata where available."""
 
 from __future__ import annotations

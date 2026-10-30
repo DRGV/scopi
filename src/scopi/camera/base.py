@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Camera backend interface.
 
 Threading contract: ``start(on_frame)`` registers a *notification* that may be invoked from any

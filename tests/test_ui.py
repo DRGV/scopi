@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """UI smoke tests (QT_QPA_PLATFORM=offscreen)."""
 
 import os

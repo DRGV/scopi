@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """ROI/measurement tool state machines. Qt-free: the canvas feeds image-space coordinates."""
 
 from __future__ import annotations

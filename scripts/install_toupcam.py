@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Populate vendor/toupcam/ from the vendor's SDK (the SDK is not redistributable; do not commit it).
 
     python scripts/install_toupcam.py references/omax/toupcamsdk.20260818 [--udev]   # extracted folder

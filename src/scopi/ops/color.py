@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Type conversion and display-related ops (Image > Type, Edit)."""
 
 from __future__ import annotations

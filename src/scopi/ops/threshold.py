@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Thresholding (Image > Adjust > Threshold). Output is an 8-bit mask with 255 = foreground."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Carry a user's data over from the application's old name (ImagePi) to Scopi, once, without losing anything.
 
 Scopi was called ImagePi until 2026-10-30. What the old name left on a machine:

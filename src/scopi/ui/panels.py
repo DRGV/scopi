@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Side panels: histogram / brightness-contrast, results table, ROI manager."""
 
 from __future__ import annotations

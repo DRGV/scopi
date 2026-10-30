@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Lookup tables: built-ins plus Fiji/ImageJ LUT file formats.
 
 Supported files: raw 768-byte planar RGB, 800-byte NIH ICOL (32-byte header),

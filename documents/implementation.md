@@ -233,13 +233,14 @@ merged, loads as v60.32327.20260818). Run `install_toupcam.py` (see the Mac quic
 | Target OS / Python | **Raspberry Pi OS Trixie, Python 3.13** (PySide6 aarch64 wheels are tagged `manylinux_2_39`, so glibc >= 2.39; Trixie has 2.41, Bookworm has 2.36). Develop on macOS with a Python 3.13 venv (`.venv` is now 3.13). |
 | First milestone | Viewer + ROI/measure + filters. Camera is milestone 2, analysis is milestone 3. |
 | Avoid | numba, wxPython, vispy, QtMultimedia (its FFmpeg plugin is a known Pi packaging risk). |
+| License | **GNU GPL version 3 or (at your option) any later version** (`GPL-3.0-or-later`), copyright Dwight Vieira, chosen 2026-10-30 (first as version 3 only, changed the same day): the `LICENSE` file (the unmodified GPLv3 text), `license = "GPL-3.0-or-later"` in `pyproject.toml` and a two-line SPDX notice with the copyright at the top of every `.py` and `.sh` file. The dependencies (BSD, MIT, Apache-2.0, PSF, LGPL) can be combined with it. The ToupTek SDK is proprietary, is not distributed and is loaded at run time. ImagePy's license text has the advertising clause of the four-clause BSD license, which is not GPL-compatible: no ImagePy code was copied and none should be. |
 
 ## What the reference material contains
 
 ### `references/fiji`
 Only the Fiji launcher/packaging repo (212 MB of the 214 MB is `.git`). No ImageJ source, jars or menu definitions. Useful for:
 - `luts/` (about 37 LUTs). Formats: raw 768-byte planar RGB, 800-byte NIH "ICOL" (32-byte header + 768 bytes), tab-separated text (`Index Red Green Blue`, header optional), float text (`cividis.txt`). Fire/Grays/Ice/Spectrum are built into `ij.jar` and must be regenerated.
-- A feature checklist. Core ImageJ behavior (Analyze Particles, Measure, thresholds, scale bar) must be reimplemented from the published ImageJ docs. Fiji is GPL, so **do not copy code**.
+- A feature checklist. Core ImageJ behavior (Analyze Particles, Measure, thresholds, scale bar) must be reimplemented from the published ImageJ docs. Fiji is GPL, so **do not copy code** (Scopi became GPL-3.0 too on 2026-10-30, but it remains a re-implementation and nothing was copied).
 
 ### `references/imagepy` (wxPython, last commit Feb 2024)
 - `sciapp/` is a mostly GUI-agnostic core (`App`, `Manager`, `Image`, shapes/ROI, `Table`, `Filter`/`Simple` actions). It is not importable headless as shipped (`report.py` imports wx).

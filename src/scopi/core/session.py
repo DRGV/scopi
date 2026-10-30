@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Session: shared application state that ops and the UI both operate on."""
 
 from __future__ import annotations

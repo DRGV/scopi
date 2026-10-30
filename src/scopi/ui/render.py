@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """Display pipeline: raw plane -> 8-bit RGB for the visible viewport only.
 
 Qt-free so it can be tested headless. For large images a lazily built mip pyramid (2x

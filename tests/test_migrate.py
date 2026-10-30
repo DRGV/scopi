@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Dwight Vieira
 """The rename from ImagePi to Scopi must not lose a user's saved calibrations or settings."""
 
 import json
