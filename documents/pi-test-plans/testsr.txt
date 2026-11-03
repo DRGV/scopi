@@ -1,9 +1,5 @@
-NOTE (2026-10-30): this plan was written when the application was called ImagePi. Read "imagepi" / "ImagePi" as "scopi" / "Scopi":
-`python -m scopi` (or the `scopi` command), data folder ~/.scopi, environment variables SCOPI_*, test images ~/scopi-test. The Pi's project
-folder (~/Code/imagepi) and the GitHub repository keep their names until they are renamed.
-
-ImagePi - Pi 5 retest "R" (run this before test3's Parts E, F and G)
-====================================================================
+Scopi - Pi 5 retest "R" (run this before test3's Parts E, F and G)
+==================================================================
 
 What Round3Results.txt showed
 PASSED on the Pi:
@@ -17,7 +13,7 @@ PROBLEMS found, and what I changed (all on the Mac, none tested on the Pi yet):
 1. Low fps (7.9 with a bare stage, 2.9 with the tissue-paper slide, the same at every resolution and with the crop). Not USB: the camera
    starts in AUTO EXPOSURE with a 350 ms limit, and 1 / 0.35 s = 2.9 fps. Your snap's Info says exposure_us 350000. The camera
    also picked about 130 ms on the bare stage (7.6 fps) in the command-line runs. Changes:
-   - ImagePi now limits the auto exposure time: a new "Auto limit" box in the Acquisition group, default 100 ms, remembered per camera.
+   - Scopi now limits the auto exposure time: a new "Auto limit" box in the Acquisition group, default 100 ms, remembered per camera.
    - The live view overlay now shows the exposure beside the fps ("1228 x 922   9.8 fps   exposure 100 ms (auto)").
    - pi_bringup.py camera now measures with a fixed 10 ms exposure by default (options --exposure-ms and --auto-limit-ms);
      camdiag has --exposure-ms. Every line says which exposure was used.
@@ -36,7 +32,7 @@ Not changed: test3 Part F (works on the command line but not in the app) and Par
 both. Skip them unless a start error comes back. Part F's one useful check, "the app leaves the camera free when it quits", is C8 below.
 
 Rules (same as before)
-- Normal user ("sch"), bash, venv active (cd ~/Code/imagepi && source .venv/bin/activate). sudo only where a step says so.
+- Normal (non-root) user, bash, venv active (cd ~/Code/scopi && source .venv/bin/activate). sudo only where a step says so.
 - Stop at the first failure and send me the output. "Send me" = paste the text.
 - Close the app before running any camera script, and close any script before starting the app. Only one program can hold the camera.
 
@@ -52,7 +48,7 @@ A1. On the Mac:
       git push
     (Round3Results.txt sits in the project folder, outside the folders added above, so it stays out of the commit.)
 A2. On the Pi:
-      cd ~/Code/imagepi
+      cd ~/Code/scopi
       git pull
       QT_QPA_PLATFORM=offscreen python -m pytest -q 2>&1 | tail -5
     Expect "175 passed". Send me the last lines.
@@ -62,7 +58,7 @@ PART B - Is the USB link fast? (command line, about 40 seconds, close the app fi
 ------------------------------------------------------------------------------------
 
 B1. Nothing may hold the camera:
-      pgrep -af "imagepi|pi_bringup|toupcam"
+      pgrep -af "scopi|pi_bringup|toupcam"
     Expect no output (the pgrep line itself does not count). Lens cap off, lamp on, no slide.
 B2. Fixed 10 ms exposure, auto exposure off:
       python scripts/pi_bringup.py camera --secs 5 2>&1 | tee ~/camera_fixed.log
@@ -83,7 +79,7 @@ B4. The vendor SDK only, fixed exposure:
 PART C - The camera in the app
 ------------------------------
 
-Start the app with: python -m imagepi 2>&1 | tee ~/gui.log
+Start the app with: python -m scopi 2>&1 | tee ~/gui.log
 C1. Camera > Camera Panel (Ctrl+Shift+C), click Refresh, select "U3CMOS18000KPA [touptek]", Connect. Look at the panel:
     - Is "Auto exposure" ticked right after Connect? (The camera starts in auto exposure, so I expect yes, with the Exposure box grey.)
     - Exposure is visibly greyed while auto exposure is on. "Auto limit" shows 100 ms. Bit depth reads "8-bit only" and is greyed:
@@ -106,8 +102,8 @@ C4. Crop with the flip on (the one thing I could only test with a fake camera). 
 C5. Exposure, with the fps at each size. Untick Auto exposure (the Exposure box becomes enabled), type 10, no Enter: the overlay
     shows "exposure 10 ms". Read the fps at 1228 x 922, then 2456 x 1842, then 4912 x 3684. Expect about 30 / 18 / 5.
     Send me the three numbers and whether any size froze.
-C6. Snap at 4912 x 3684, 8-bit. Time it from the click to the new tab. Save it as TIFF (File > Save As, ~/imagepi-test/snap8.tif), then:
-      python -c "import tifffile,sys; t=tifffile.TiffFile(sys.argv[1]); print('imagej:', t.is_imagej); print((t.imagej_metadata or {}).get('Info')); print(t.pages[0].description[:300])" ~/imagepi-test/snap8.tif
+C6. Snap at 4912 x 3684, 8-bit. Time it from the click to the new tab. Save it as TIFF (File > Save As, ~/scopi-test/snap8.tif), then:
+      python -c "import tifffile,sys; t=tifffile.TiffFile(sys.argv[1]); print('imagej:', t.is_imagej); print((t.imagej_metadata or {}).get('Info')); print(t.pages[0].description[:300])" ~/scopi-test/snap8.tif
     Expect imagej: True and an Info text with exposure_us 10000 (or what you set) and, if you flipped, a "flip" entry.
 C7. The terminal log. Quit the app (File > Quit, Ctrl+Q): the prompt must come back within a few seconds. Then:
       grep -c "VIDEOIO\|textinput" ~/gui.log
@@ -121,7 +117,7 @@ C8. The app leaves the camera free (this replaces test3 Part F2). Right after C7
 PART D - Re-test of the fixes (no camera needed; test3 Part D, which round 3 did not report)
 ---------------------------------------------------------------------------------------------
 
-D1. Outlines and the summary table. python -m imagepi ~/imagepi-test/known_shapes.png
+D1. Outlines and the summary table. python -m scopi ~/scopi-test/known_shapes.png
     Image > Adjust > Auto Threshold (Otsu, Objects: bright), then Analyze > Analyze Particles with the defaults.
     Expect: red 2 px outlines on all 9 shapes. In the Results panel: 9 rows with Area 10000 (six times) and 7845 (three times),
     shown as whole numbers. Under it a "Particle summary" row: Count 9, Total Area 83535, Average Size 9281.67, %Area 17.4031,
@@ -133,12 +129,12 @@ D1. Outlines and the summary table. python -m imagepi ~/imagepi-test/known_shape
 D2. Filters on cells_gray.png (File > Open, Ctrl+O). Process > Filters > Gaussian Blur: a slider now sits next to the Sigma box.
     Tick Preview and drag the slider: the picture should follow within about a second and the window stay responsive. OK.
     Image > Adjust > Auto Threshold (Otsu, dark), Analyze Particles: expect Count 80, Total Area 81369, %Area 7.19 in the summary.
-D3. Undo across a type change. Open ~/imagepi-test/cells_16bit.tif. Image > Type > 8-bit, then Edit > Undo (Ctrl+Z).
+D3. Undo across a type change. Open ~/scopi-test/cells_16bit.tif. Image > Type > 8-bit, then Edit > Undo (Ctrl+Z).
     Expect the 16-bit image back looking like it did at the start, with the Brightness / Contrast Min and Max matching it
     (round 2 showed a white page with two black dots). Then Edit > Redo (Ctrl+Shift+Z): the 8-bit image again, looking normal.
-D4. The 18 MP image. Open ~/imagepi-test/cells_18mp_rgb.tif.
+D4. The 18 MP image. Open ~/scopi-test/cells_18mp_rgb.tif.
     Process > Filters > Gaussian Blur, sigma 2, OK: time it. Round 2's benchmark said 2.0 s for this on the Pi. I expect well under 1 s.
-    File > Save As, TIFF, ~/imagepi-test/out.tif. Then File > Close and reopen it. Check: ls -l ~/imagepi-test/out.tif
+    File > Save As, TIFF, ~/scopi-test/out.tif. Then File > Close and reopen it. Check: ls -l ~/scopi-test/out.tif
     (about 54 MB) and that the reopened image looks right. Send me the Gaussian time and the file size.
 D5. The simulated camera. Camera Panel, select [simulated], Connect, Start live view.
     Type a different Exposure and wait: the picture changes without Enter. Tick Auto exposure: the box greys out and its number

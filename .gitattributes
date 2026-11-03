@@ -1,0 +1,4 @@
+# LF in the repository and in every checkout, on Windows too: tests/test_license.py compares the exact size of LICENSE,
+# and packaging/install_pi.sh has to run under bash.
+* text=auto eol=lf
+*.png binary

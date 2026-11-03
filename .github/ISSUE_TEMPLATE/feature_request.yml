@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest something Scopi should do, or do better
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Scopi is modelled on [ImageJ and Fiji](https://github.com/DRGV/scopi/blob/main/readme.md#thanks) and runs on a Raspberry Pi 5. Requests that fit that
+        scope, and that you can describe through a real task at the microscope or the bench, are the easiest to act on.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the task, not the solution. What do you do today, and where does it hurt?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like Scopi to do?
+    validations:
+      required: true
+  - type: input
+    id: imagej
+    attributes:
+      label: ImageJ or Fiji equivalent
+      description: If ImageJ or Fiji does this, give the menu path or command, for example `Analyze > Set Scale...`.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: A plugin, a macro or another program that you tried, and why it was not enough.
+  - type: dropdown
+    id: help
+    attributes:
+      label: Could you help build it?
+      description: See [CONTRIBUTING.md](https://github.com/DRGV/scopi/blob/main/CONTRIBUTING.md). A plugin is often the quickest way to try an idea.
+      options:
+        - "No"
+        - "Yes, with guidance"
+        - "Yes, I can send a pull request"

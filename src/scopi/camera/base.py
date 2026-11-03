@@ -118,7 +118,7 @@ class CameraBackend(ABC):
 
     def _oriented(self, arr: np.ndarray) -> np.ndarray:
         """A delivered frame turned into the picture the user asked for (a view; callers copy)."""
-        h, v = (a != b for a, b in zip(self._flip, self.delivered_flip))
+        h, v = (a != b for a, b in zip(self._flip, self.delivered_flip, strict=True))
         if h:
             arr = arr[:, ::-1]
         if v:

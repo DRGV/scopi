@@ -1,8 +1,10 @@
 .venv/
 __pycache__/
 *.egg-info/
+build/
+dist/
 .DS_Store
-# Vendor-controlled SDK binaries and downloads (see readme "Licensing"); populate vendor/toupcam with scripts/install_toupcam.py
+# Vendor-controlled SDK binaries and downloads (see "The camera SDK is not open source" in readme.md); populate vendor/toupcam with scripts/install_toupcam.py
 vendor/
 fiji_original/
 imagepy_original/

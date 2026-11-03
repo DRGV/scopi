@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Dwight Vieira
 import numpy as np
-import pytest
 
 from scopi.core import luts
 from scopi.ui.render import DisplayPipeline, histogram, value_at

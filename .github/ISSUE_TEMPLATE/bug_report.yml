@@ -1,0 +1,82 @@
+name: Bug report
+description: Something in Scopi does not work as the documentation says
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Please read the [troubleshooting guide](https://github.com/DRGV/scopi/blob/main/usage.md#11-troubleshooting) first.
+        **Security problems do not belong here.** Report them privately, see [SECURITY.md](https://github.com/DRGV/scopi/blob/main/SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect to see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest set of steps that shows it, starting from starting Scopi. Say which image or file you used if it matters (attach it if you can, without personal data).
+      placeholder: |
+        1. Open ...
+        2. Choose Process > ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Scopi version
+      description: 'Shown in Scopi under Help > About Scopi. Add the commit if you cloned the repository: `git rev-parse --short HEAD`.'
+      placeholder: "0.1.0 (commit 7e03564)"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Computer and operating system
+      options:
+        - Raspberry Pi 5, Raspberry Pi OS Trixie (64-bit)
+        - Raspberry Pi 5, another operating system
+        - macOS
+        - Another Linux computer
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python and Qt versions
+      description: 'The output of `.venv/bin/python scripts/pi_bringup.py check` is ideal, or at least `python --version`.'
+      placeholder: "Python 3.13.5, PySide6 6.12.0"
+  - type: dropdown
+    id: camera
+    attributes:
+      label: Camera
+      description: Choose the one the problem happens with. Choose "None" if it is about opening, processing or measuring pictures.
+      options:
+        - None, no camera involved
+        - Simulated camera
+        - OMAX A35180U3 (18 MP, ToupTek SDK)
+        - Another OMAX or ToupTek camera
+        - Another USB camera (V4L2 fallback)
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Terminal output
+      description: Start Scopi from a terminal (`.venv/bin/scopi`) and paste what it prints around the time of the problem. Paste text, not a screenshot.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before sending
+      options:
+        - label: I looked through the existing issues and the troubleshooting guide.
+          required: true
+        - label: Nothing I attached contains personal data (patient, student or other).
+          required: true

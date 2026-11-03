@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use Scopi in your work, please cite it using these metadata. Please also cite ImageJ and Fiji, which Scopi is modelled on (see the readme)."
+type: software
+title: "Scopi"
+abstract: >-
+  Microscope image viewing, measurement and analysis for the Raspberry Pi 5, with live view and snaps from a USB microscope camera.
+  A stand-alone Python (Qt) application modelled on ImageJ and Fiji.
+authors:
+  - family-names: Vieira
+    given-names: Dwight
+version: 0.1.0
+license: GPL-3.0-or-later
+repository-code: "https://github.com/DRGV/scopi"
+url: "https://github.com/DRGV/scopi"
+keywords:
+  - microscopy
+  - image analysis
+  - ImageJ
+  - Fiji
+  - Raspberry Pi
+  - Qt
+  - particle analysis

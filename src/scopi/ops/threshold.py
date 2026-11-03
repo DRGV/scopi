@@ -7,7 +7,7 @@ from __future__ import annotations
 import numpy as np
 from skimage import filters
 
-from .base import Bool, Choice, Filter, Float, Int, register
+from .base import Choice, Filter, Float, Int, register
 
 CAT = "Image>Adjust"
 

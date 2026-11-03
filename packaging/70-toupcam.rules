@@ -1,0 +1,14 @@
+# ToupTek / OMAX USB cameras. The vendor ids are the two that the ToupTek SDK's own rule lists (0x0547 and 0x04b4).
+#
+# The SDK's rule makes these devices writable by every user (MODE="0666"). This rule grants access instead to
+#   - whoever is logged in at the computer's own screen and keyboard (TAG+="uaccess"), and
+#   - members of the group plugdev (MODE="0660", GROUP="plugdev"): that covers a login over SSH, and the first user of Raspberry Pi OS
+#     is normally in plugdev (check with the command `groups`).
+#
+# The file name starts with 70 on purpose: uaccess only works from a rule that runs before 73-seat-late.rules.
+#
+# Install: sudo install -m 644 70-toupcam.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
+# and unplug and re-plug the camera. `scripts/install_toupcam.py --udev` and `packaging/install_pi.sh` do this for you, and remove the
+# older, world-writable 99-toupcam.rules that earlier installs left behind.
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0547", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="04b4", MODE="0660", GROUP="plugdev", TAG+="uaccess"

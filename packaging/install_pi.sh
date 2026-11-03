@@ -3,6 +3,7 @@
 # Copyright (C) 2026 Dwight Vieira
 # Install Scopi on Raspberry Pi OS Trixie (Python 3.13, aarch64).
 #   bash packaging/install_pi.sh [path/to/toupcamsdk.zip-or-folder]
+#   SCOPI_FIJI_LUTS=/path/to/fiji/luts bash packaging/install_pi.sh ...      # optional: also install Fiji's look-up tables
 # Run it as your normal user, not with sudo: it calls sudo itself for apt and the udev rule, and the
 # venv and launcher must belong to you. Safe to re-run. Use `bash -x packaging/install_pi.sh` to trace it.
 if [ -z "${BASH_VERSION:-}" ]; then
@@ -61,21 +62,15 @@ for gui_cv in opencv-python opencv-contrib-python; do
   fi
 done
 
-# Scopi was called ImagePi until 2026-10-30. An older install left an editable package named imagepi (its `imagepi` command would point at
-# a folder that no longer exists), so remove it; the new install below replaces it. Nothing of yours is touched: presets and settings are
-# copied to the new names the first time Scopi starts.
-"$PY" -m pip uninstall -y imagepi >/dev/null 2>&1 || true
-
 say "Installing Scopi and its Python dependencies (large downloads; can take several minutes)"
-"$PY" -m pip install "${PIP_OPTS[@]}" -e "$ROOT[test]"
+"$PY" -m pip install "${PIP_OPTS[@]}" -e "${ROOT}[test]"
 
 if [ -n "$SDK_SRC" ]; then
   say "Installing the ToupTek camera SDK and udev rule (sudo)"
   "$PY" "$ROOT/scripts/install_toupcam.py" "$SDK_SRC" --udev
 else
   say "Installing the udev rule (sudo)"
-  sudo install -m 644 "$ROOT/packaging/99-toupcam.rules" /etc/udev/rules.d/99-toupcam.rules
-  sudo udevadm control --reload-rules && sudo udevadm trigger
+  "$PY" "$ROOT/scripts/install_toupcam.py" --udev-only
   if [ -f "$ROOT/vendor/toupcam/python/toupcam.py" ]; then
     echo "SDK already present in vendor/toupcam."
   else
@@ -83,16 +78,20 @@ else
   fi
 fi
 
-# optional: Fiji LUTs if the reference checkout is present
-if [ -d "$ROOT/references/fiji/luts" ]; then
-  say "Installing Fiji LUTs"
-  "$PY" "$ROOT/scripts/install_luts.py" "$ROOT/references/fiji/luts"
+# optional: Fiji look-up tables, when SCOPI_FIJI_LUTS names the "luts" folder of a Fiji copy
+if [ -n "${SCOPI_FIJI_LUTS:-}" ]; then
+  if [ -d "$SCOPI_FIJI_LUTS" ]; then
+    say "Installing Fiji look-up tables from $SCOPI_FIJI_LUTS"
+    "$PY" "$ROOT/scripts/install_luts.py" "$SCOPI_FIJI_LUTS"
+  else
+    echo "SCOPI_FIJI_LUTS=$SCOPI_FIJI_LUTS is not a folder: skipping the look-up tables" >&2
+  fi
 fi
 
 say "Installing the desktop launcher"
 mkdir -p "$HOME/.local/share/applications"
-rm -f "$HOME/.local/share/applications/imagepi.desktop"   # the menu entry of the old name (its command no longer exists)
-sed "s|^Exec=.*|Exec=$VENV/bin/scopi %F|" "$ROOT/packaging/scopi.desktop" > "$HOME/.local/share/applications/scopi.desktop"
+ICON="$ROOT/src/scopi/resources/scopi.png"   # the launcher names the file itself, so the icon needs no icon-theme install
+sed -e "s|^Exec=.*|Exec=$VENV/bin/scopi %F|" -e "s|^Icon=.*|Icon=$ICON|" "$ROOT/packaging/scopi.desktop" > "$HOME/.local/share/applications/scopi.desktop"
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$HOME/.local/share/applications" || true
 fi

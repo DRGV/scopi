@@ -677,8 +677,6 @@ def win(qtbot, tmp_path, monkeypatch):
 
 
 def test_live_view_snap_and_disconnect(win, qtbot, monkeypatch):
-    from PySide6.QtWidgets import QMessageBox
-    from scopi.camera import SimulatedCamera
 
     cp, ctl = win.camera_panel, win.camera
     cp.connect_btn.click()

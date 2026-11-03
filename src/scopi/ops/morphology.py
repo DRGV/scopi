@@ -10,7 +10,7 @@ from skimage import morphology as morph
 from skimage import segmentation
 from skimage.measure import label as sk_label
 
-from .base import Bool, Choice, Filter, Int, register
+from .base import Choice, Filter, Int, register
 
 CAT = "Process>Morphology"
 

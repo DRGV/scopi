@@ -6,13 +6,12 @@ from __future__ import annotations
 
 import os
 
-import numpy as np
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction, QActionGroup, QCursor, QKeySequence
-from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog, QHBoxLayout, QInputDialog, QLabel, QMainWindow,
-                               QMenu, QMessageBox, QPlainTextEdit, QSlider, QTabWidget, QToolBar, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog, QHBoxLayout, QLabel, QMainWindow,
+                               QMenu, QMessageBox, QSlider, QTabWidget, QToolBar, QVBoxLayout, QWidget)
 
-from .. import io
+from .. import __version__, io
 from ..core import luts
 from ..core.image import ImageDoc
 from ..core.roi import Rect
@@ -593,7 +592,7 @@ class MainWindow(QMainWindow):
         theme.apply_theme(QApplication.instance(), self.settings.value("theme", "auto"), on)
 
     def about(self) -> None:
-        QMessageBox.about(self, "Scopi", "Scopi\nMicroscope image viewing and processing for the Raspberry Pi 5.\n\n"
+        QMessageBox.about(self, "Scopi", f"Scopi version {__version__}\nMicroscope image viewing and processing for the Raspberry Pi 5.\n\n"
                           "Copyright (C) 2026 Dwight Vieira\n"
                           "Free software under the GNU General Public License, version 3 or (at your option) any later version. See the LICENSE file.")
 

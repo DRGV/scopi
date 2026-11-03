@@ -1,7 +1,3 @@
-NOTE (2026-10-30): this plan was written when the application was called ImagePi. Read "imagepi" / "ImagePi" as "scopi" / "Scopi":
-`python -m scopi` (or the `scopi` command), data folder ~/.scopi, environment variables SCOPI_*, test images ~/scopi-test. The Pi's project
-folder (~/Code/imagepi) and the GitHub repository keep their names until they are renamed.
-
 On the Pi: `packaging/install_pi.sh [toupcamsdk.zip]` (apt libs, venv, udev rule, SDK, desktop launcher), then
 `scripts/pi_bringup.py check | render | camera` to do the milestone 0 measurements. `scripts/benchmark.py` times the
 display pipeline and filters on an 18 MP image
@@ -26,7 +22,7 @@ The full output with the camera plugged in:
 the USB listing and the 0547 lines
 the camera name, resolutions and pixel size
 the WxH: fps, MB/s line for each resolution
-If it prints "no ToupTek camera found" or a permission error, send that along with the output of lsusb and ls -l /etc/udev/rules.d/99-toupcam.rules.
+If it prints "no ToupTek camera found" or a permission error, send that along with the output of lsusb and ls -l /etc/udev/rules.d/*toupcam*.rules.
 5. scripts/benchmark.py
 
 The full output. It prints the image size, the median and min ms for each display and filter step, and the peak RSS and undo budget.

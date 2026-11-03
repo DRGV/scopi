@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Keeps the commit hashes in .github/workflows/*.yml current.
+  # There is no pip entry on purpose: pyproject.toml and requirements.txt do not pin versions, so there is nothing for Dependabot to bump.
+  # The weekly CI run (ci.yml) is what notices a dependency release that breaks Scopi. Add a pip entry if you ever pin versions or add a lock file.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"

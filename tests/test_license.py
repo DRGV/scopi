@@ -2,11 +2,12 @@
 # Copyright (C) 2026 Dwight Vieira
 """The license is stated the same way everywhere: pyproject.toml, the LICENSE file and the top of every source file."""
 
+import re
 import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-HOLDER = "Dwight Vieira"
+COPYRIGHT = re.compile(r"# Copyright \(C\) \d{4}(-\d{4})? \S+")     # a year (or a range of years) and a name: the author of the file, whoever that is
 
 
 def _sources():
@@ -20,10 +21,19 @@ def test_every_source_file_carries_the_license_and_copyright_notice():
     missing = []
     for p in _sources():
         head = p.read_text().splitlines()[:4]          # after an optional shebang line
-        if f"# SPDX-License-Identifier: {expr}" not in head or not any(l.startswith("# Copyright (C) ") and HOLDER in l for l in head):
+        if f"# SPDX-License-Identifier: {expr}" not in head or not any(COPYRIGHT.match(l) for l in head):
             missing.append(str(p.relative_to(ROOT)))
-    assert not missing, f"no license notice at the top of: {missing}. Add the two lines used by the other files."
+    assert not missing, f"no license notice at the top of: {missing}. Add the two lines used by the other files (the copyright line carries the author's own name)."
     assert len(_sources()) > 50                          # the search really found the project's files
+
+
+def test_the_copyright_check_accepts_any_author_but_needs_a_year_and_a_name():
+    assert COPYRIGHT.match("# Copyright (C) 2026 Dwight Vieira")
+    assert COPYRIGHT.match("# Copyright (C) 2026 Jane Doe")
+    assert COPYRIGHT.match("# Copyright (C) 2025-2026 Jane Doe <jane@example.org>")
+    assert not COPYRIGHT.match("# Copyright (C) 2026")             # no name
+    assert not COPYRIGHT.match("# Copyright (C) Jane Doe")         # no year
+    assert not COPYRIGHT.match("# Copyright 2026 Jane Doe")        # not the form the other files use
 
 
 def test_license_file_is_the_unmodified_gpl_version_3():

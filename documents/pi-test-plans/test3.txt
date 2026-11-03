@@ -1,9 +1,5 @@
-NOTE (2026-10-30): this plan was written when the application was called ImagePi. Read "imagepi" / "ImagePi" as "scopi" / "Scopi":
-`python -m scopi` (or the `scopi` command), data folder ~/.scopi, environment variables SCOPI_*, test images ~/scopi-test. The Pi's project
-folder (~/Code/imagepi) and the GitHub repository keep their names until they are renamed.
-
-ImagePi - Pi 5 test round 3
-===========================
+Scopi - Pi 5 test round 3
+=========================
 
 What round 2 (Round2Results.txt) showed
 PASSED on the Pi:
@@ -18,7 +14,7 @@ PASSED on the Pi:
 PROBLEMS found, and what I changed (all on the Mac, none tested on the Pi yet):
 1. Real camera: "pi_bringup.py camera" died on the first pull with
      ctypes.ArgumentError: argument 2: TypeError: 'bytearray' object cannot be interpreted as ctypes.c_char_p
-   ImagePi gave the SDK wrapper a bytearray and the wrapper only accepts a ctypes buffer. My fake-SDK tests accepted a bytearray, so
+   Scopi gave the SDK wrapper a bytearray and the wrapper only accepts a ctypes buffer. My fake-SDK tests accepted a bytearray, so
    they never caught it; they now reject it like the real wrapper does. The same bug explains round 1's "No live image" in the app:
    the start worked, every pull failed, and the app swallowed the error. Pull errors are now shown in the live view and the status bar.
    (Round 1's E_BUSY was most likely the app still holding the camera while the script ran. Not confirmed, so Part G keeps the checks.)
@@ -39,7 +35,7 @@ on the Mac, about 70 ms on the Pi, so 14 fps is a pass), and a 16-bit colour sna
 "imagej_metadata" is None for it by design.
 
 Rules (same as before)
-- Normal user ("sch"), bash, venv active (cd ~/Code/imagepi && source .venv/bin/activate). sudo only where a step says so.
+- Normal (non-root) user, bash, venv active (cd ~/Code/scopi && source .venv/bin/activate). sudo only where a step says so.
 - Stop at the first failure and send me the output. "Send me" = paste the text.
 - Close the app before running any camera script, and close any script before starting the app. Only one program can hold the camera.
 
@@ -54,7 +50,7 @@ A1. On the Mac:
       git commit -m "Fix camera pull buffer, outlines, summary table, undo range; exposure and slider UI; OpenCV Gaussian and display LUT"
       git push
 A2. On the Pi:
-      cd ~/Code/imagepi
+      cd ~/Code/scopi
       git pull
       QT_QPA_PLATFORM=offscreen python -m pytest -q 2>&1 | tail -5
     Expect "159 passed". The install is editable, no reinstall is needed. Send me the last lines.
@@ -64,9 +60,9 @@ PART B - The real camera from the command line
 ----------------------------------------------
 
 B1. Make sure nothing holds the camera, then replug it:
-      pgrep -af "imagepi|pi_bringup|toupcam"
+      pgrep -af "scopi|pi_bringup|toupcam"
     Expect no output (the pgrep line itself does not count). If lines are listed, send them, then stop those
-    processes with: pkill -f "imagepi|pi_bringup"
+    processes with: pkill -f "scopi|pi_bringup"
     Then unplug the camera, wait 5 seconds, plug it into a blue USB 3 port, wait 5 seconds.
     Remove the lens cap and turn the lamp on.
 B2. The measurement that failed in round 2 (about 20 seconds):
@@ -85,7 +81,7 @@ B3. The same test through the vendor SDK only, with the USB details (about 15 se
 PART C - The real camera in the app
 -----------------------------------
 
-Do Part B first. Start the app with: python -m imagepi 2>&1 | tee ~/gui.log
+Do Part B first. Start the app with: python -m scopi 2>&1 | tee ~/gui.log
 C1. Camera > Camera Panel (Ctrl+Shift+C), click Refresh. Select "U3CMOS18000KPA [touptek]", Connect, set Resolution 1228 x 922,
     Start live view. If it fails, the live view now says why under "No live image" (also in the status bar): send me that text.
     If it works, read the fps in the corner and judge smoothness, tearing and lag.
@@ -98,10 +94,10 @@ C4. Switch Resolution to 2456 x 1842 and then 4912 x 3684 and read the fps at ea
 C5. Hardware crop: with live view running, drag a rectangle on the live picture. The Crop button changes to
     "Crop W x H (click: full frame)" and the fps should rise. Click it to return to full frame.
 C6. Snap at 8-bit. The full-resolution picture opens in a new tab: time it from the click. Save it as TIFF (File > Save As,
-    ~/imagepi-test/snap8.tif), then in a terminal:
-      python -c "import tifffile,sys; t=tifffile.TiffFile(sys.argv[1]); print('imagej:', t.is_imagej); print((t.imagej_metadata or {}).get('Info')); print(t.pages[0].description[:300])" ~/imagepi-test/snap8.tif
+    ~/scopi-test/snap8.tif), then in a terminal:
+      python -c "import tifffile,sys; t=tifffile.TiffFile(sys.argv[1]); print('imagej:', t.is_imagej); print((t.imagej_metadata or {}).get('Info')); print(t.pages[0].description[:300])" ~/scopi-test/snap8.tif
     Expect imagej: True and an Info text with the camera name, exposure, gain, bits and calibration.
-C7. Set Bit depth to 16-bit, Start live view, Snap, save as ~/imagepi-test/snap16.tif and run the same command on it.
+C7. Set Bit depth to 16-bit, Start live view, Snap, save as ~/scopi-test/snap16.tif and run the same command on it.
     Expect "imagej: False", then None, then the JSON text (camera, exposure, gain, bits=16). The image must look normal
     (not black, not white). If the camera has no 16-bit mode you get a clear message instead: send it.
 C8. Unplug the USB cable WHILE live view runs. Expect a message in the status bar or the panel and the app still running.
@@ -114,7 +110,7 @@ C9. Quit the app. Expect the prompt back within a few seconds.
 PART D - Re-test of the fixes (no camera needed)
 ------------------------------------------------
 
-D1. Outlines and the summary table. python -m imagepi ~/imagepi-test/known_shapes.png
+D1. Outlines and the summary table. python -m scopi ~/scopi-test/known_shapes.png
     Image > Adjust > Auto Threshold (Otsu, Objects: bright), then Analyze > Analyze Particles with the defaults.
     Expect: red 2 px outlines on all 9 shapes. In the Results panel: 9 rows with Area 10000 (six times) and 7845 (three times),
     shown as whole numbers. Under it a "Particle summary" row: Count 9, Total Area 83535, Average Size 9281.67, %Area 17.4031,
@@ -126,17 +122,17 @@ D1. Outlines and the summary table. python -m imagepi ~/imagepi-test/known_shape
 D2. Filters on cells_gray.png (File > Open, Ctrl+O). Process > Filters > Gaussian Blur: a slider now sits next to the Sigma box.
     Tick Preview and drag the slider: the picture should follow within about a second and the window stay responsive. OK.
     Image > Adjust > Auto Threshold (Otsu, dark), Analyze Particles: expect Count 80, Total Area 81369, %Area 7.19 in the summary.
-D3. Undo across a type change. Open ~/imagepi-test/cells_16bit.tif. Image > Type > 8-bit, then Edit > Undo (Ctrl+Z).
+D3. Undo across a type change. Open ~/scopi-test/cells_16bit.tif. Image > Type > 8-bit, then Edit > Undo (Ctrl+Z).
     Expect the 16-bit image back looking like it did at the start, with the Brightness / Contrast Min and Max matching it
     (round 2 showed a white page with two black dots). Then Edit > Redo (Ctrl+Shift+Z): the 8-bit image again, looking normal.
-D4. The 18 MP image, the two steps round 2 skipped. Open ~/imagepi-test/cells_18mp_rgb.tif.
+D4. The 18 MP image, the two steps round 2 skipped. Open ~/scopi-test/cells_18mp_rgb.tif.
     Process > Filters > Gaussian Blur, sigma 2, OK: time it. Round 2's benchmark said 2.0 s for this on the Pi. I expect well under 1 s (measured only on the Mac so far).
-    File > Save As, TIFF, ~/imagepi-test/out.tif. Then File > Close and reopen it. Check: ls -l ~/imagepi-test/out.tif
+    File > Save As, TIFF, ~/scopi-test/out.tif. Then File > Close and reopen it. Check: ls -l ~/scopi-test/out.tif
     (about 54 MB) and that the reopened image looks right. Send me the Gaussian time and the file size.
 D5. The simulated camera. Camera Panel, select [simulated], Connect, Start live view.
     Type a different Exposure and wait: the picture changes without Enter. Tick Auto exposure: the box greys out and its number
     drifts to a steady value, the picture settles at mid-gray (try it after setting Exposure to a very high value first). Untick.
-D6. The terminal. While the app runs from "python -m imagepi 2>&1 | tee ~/gui.log": no more
+D6. The terminal. While the app runs from "python -m scopi 2>&1 | tee ~/gui.log": no more
     "qt.qpa.wayland.textinput ... Trying to disable" lines. Send me what appears (or "none").
 D7. Speed again. Close the app, nothing else running:
       python scripts/pi_bringup.py render 2>&1 | tee ~/render2.log
@@ -158,7 +154,7 @@ E1. Focus on the scale, Snap, draw a Line tool line along 1 mm of the scale, Ima
 PART F - The camera works on the command line but not in the app
 ----------------------------------------------------------------
 
-F1. Run the app from the terminal (python -m imagepi 2>&1 | tee ~/gui.log), Connect, Start live view, and send me the text
+F1. Run the app from the terminal (python -m scopi 2>&1 | tee ~/gui.log), Connect, Start live view, and send me the text
     under "No live image", the status line and ~/gui.log.
 F2. Quit the app, then rerun B2 at once and tell me whether it still works. If it says E_BUSY now, the app left the camera
     open after quitting, which is a bug I need to fix.
@@ -168,7 +164,7 @@ PART G - Only if E_BUSY (0x800700aa) or another start error comes back with noth
 ------------------------------------------------------------------------------------------------
 
 Stop at the first step that makes the camera start, and tell me which one it was.
-G1. Another process holds it: pgrep -af "imagepi|pi_bringup|toupcam" (nothing but the pgrep line), then replug the camera.
+G1. Another process holds it: pgrep -af "scopi|pi_bringup|toupcam" (nothing but the pgrep line), then replug the camera.
 G2. USB buffer limit. cat /sys/module/usbcore/parameters/usbfs_memory_mb and send me the number. If the small resolution works and
     4912x3684 does not, raise it until the next reboot and re-run camdiag:
       echo 1000 | sudo tee /sys/module/usbcore/parameters/usbfs_memory_mb
@@ -183,9 +179,9 @@ G3. Power, link and kernel messages, right after a failed run:
       python scripts/pi_bringup.py camdiag --bandwidth 50 --secs 3
 G4. Other blue port, then (if you can) sudo reboot, plug the camera in, run camdiag with nothing else started.
 G5. The newer SDK (20260818), only if G1 to G4 changed nothing. On the Mac:
-      cd ~/Code/Python/imagepy/references/omax/toupcamsdk.20260818
+      cd /path/to/toupcamsdk.20260818
       zip -r ~/toupcam-20260818-min.zip python inc linux/arm64 linux/udev
-      scp ~/toupcam-20260818-min.zip sch@<the Pi's address>:~/
+      scp ~/toupcam-20260818-min.zip <user>@<the Pi's address>:~/
     On the Pi:
       python scripts/install_toupcam.py ~/toupcam-20260818-min.zip
       python scripts/pi_bringup.py camdiag --secs 3 2>&1 | tee ~/camdiag_new_sdk.log

@@ -1,9 +1,5 @@
-NOTE (2026-10-30): this plan was written when the application was called ImagePi. Read "imagepi" / "ImagePi" as "scopi" / "Scopi":
-`python -m scopi` (or the `scopi` command), data folder ~/.scopi, environment variables SCOPI_*, test images ~/scopi-test. The Pi's project
-folder (~/Code/imagepi) and the GitHub repository keep their names until they are renamed.
-
-ImagePi - Pi 5 test round 4
-===========================
+Scopi - Pi 5 test round 4
+=========================
 
 What testrsResults.txt (testsr.txt and test3's D and E1) showed
 PASSED on the Pi:
@@ -25,7 +21,7 @@ PROBLEMS found, and what I changed (all on the Mac, none tested on the Pi yet):
 2. Crop with Flip horizontally ticked came from the wrong place. From a.png / a-cropped.png: x was right, but the crop started at about y 42 where you
    selected y 196 (of 922): 922 - 196 - 684 = 42, i.e. the vertically mirrored place. So the camera's hardware crop is measured in the eyepiece view's
    coordinates while its frames arrive upside down; the app now maps the selection that way. This is an inference from one screenshot: roitest (Part B)
-   measures it on the camera directly. The second crop being off was the same error (the first crop was not where ImagePi thought).
+   measures it on the camera directly. The second crop being off was the same error (the first crop was not where Scopi thought).
 3. A second snap in the same live view timed out; stopping and starting the live view fixed it. The camera backend now restarts the stream after
    every still (about a second, the live view carries on by itself), and once more if a still does not arrive; the error now lists the SDK events seen.
    snaptest (Part C) repeats snaps and shows what the SDK itself does.
@@ -39,7 +35,7 @@ Noted for later (in the readme, not changed now): the main window cannot be made
 become user-selectable.
 
 Rules (same as before)
-- Normal user ("sch"), bash, venv active (cd ~/Code/imagepi && source .venv/bin/activate). sudo only where a step says so.
+- Normal (non-root) user, bash, venv active (cd ~/Code/scopi && source .venv/bin/activate). sudo only where a step says so.
 - Stop at the first failure and send me the output. "Send me" = paste the text.
 - Close the app before running any camera script, and close any script before starting the app. Only one program can hold the camera.
 
@@ -56,7 +52,7 @@ A1. On the Mac:
     Do not add a.mov (100 MB, GitHub refuses files over 100 MB), a.png, a-cropped.png or testrsResults.txt: the command above names only the folders
     and files to add, so they stay out.
 A2. On the Pi:
-      cd ~/Code/imagepi
+      cd ~/Code/scopi
       git pull
       QT_QPA_PLATFORM=offscreen python -m pytest -q 2>&1 | tail -5
     Expect "193 passed". Send me the last lines.
@@ -65,7 +61,7 @@ A2. On the Pi:
 PART B - Where does a hardware crop land? (command line, about 1 minute, camera only)
 -------------------------------------------------------------------------------------
 
-B1. Nothing may hold the camera: pgrep -af "imagepi|pi_bringup|toupcam" (no output except the pgrep line). Lamp on, lens cap off, the tissue-paper
+B1. Nothing may hold the camera: pgrep -af "scopi|pi_bringup|toupcam" (no output except the pgrep line). Lamp on, lens cap off, the tissue-paper
     slide under the lens (a still, textured picture; nothing may move while it runs), focus it roughly.
 B2. python scripts/pi_bringup.py roitest 2>&1 | tee ~/roitest.log
     It grabs a full frame, asks the camera for an off-centre crop, finds the cropped picture inside the full frame and says where it was.
@@ -83,14 +79,14 @@ PART C - Snaps in a row (command line, about 1 minute)
 C1. python scripts/pi_bringup.py snaptest --count 4 2>&1 | tee ~/snaptest.log
     Expect four lines "snap N: 4912x3684 in X s, stream restarts 1, live frames pulled afterwards: M" with M above 0 and no FAILED.
 C2. python scripts/pi_bringup.py snaptest --count 3 --no-restart 2>&1 | tee ~/snaptest_norestart.log
-    This switches ImagePi's restart off and shows what the SDK does by itself. If the second snap needs a restart you will see "snap 2: ... in 5 s or more, stream
+    This switches Scopi's restart off and shows what the SDK does by itself. If the second snap needs a restart you will see "snap 2: ... in 5 s or more, stream
     restarts 1"; if every snap works at once without a restart, tell me. Send me both logs.
 
 
 PART D - The camera in the app
 ------------------------------
 
-Start the app with: python -m imagepi 2>&1 | tee ~/gui.log
+Start the app with: python -m scopi 2>&1 | tee ~/gui.log
 Camera > Camera Panel (Ctrl+Shift+C), Refresh, select "U3CMOS18000KPA [touptek]", Connect, Resolution 1228 x 922, Start live view.
 USB cable of the camera pointing to the rear of the microscope for these checks.
 
@@ -103,7 +99,7 @@ D2. Crop, with the boxes unticked: drag a rectangle around the letter. The live 
 D3. Snaps in a row. With the live view running at 1228 x 922: Snap, close the new tab, Snap again, again, again (at least four, without stopping the live view).
     Tell me: does every snap arrive, roughly how many seconds each takes, does the live view carry on by itself afterwards (a short blink is expected),
     and does it still work with a crop active (crop, then Snap: the snap is the full 4912 x 3684 picture).
-D4. The Gaussian slider. Quit the camera view if you like (Disconnect). File > Open ~/imagepi-test/cells_gray.png, Process > Filters > Gaussian Blur,
+D4. The Gaussian slider. Quit the camera view if you like (Disconnect). File > Open ~/scopi-test/cells_gray.png, Process > Filters > Gaussian Blur,
     tick Preview. Drag the slider slowly to the right and back: the picture should blur progressively while you drag (about four updates a second). Then type 10
     in the Sigma box and wait a second. Tell me: "follows while dragging", "only after I let go" or "nothing", for the slider and for typing. OK.
 D5. Measuring. File > Open the snap of the 0.01 mm slide (or snap it), draw a Line along 1 mm of the scale, Image > Set Scale (Known distance 1, Unit mm), OK.

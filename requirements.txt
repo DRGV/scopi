@@ -4,7 +4,7 @@
 #   .venv/bin/pip install -r requirements.txt
 #   .venv/bin/pip install -e .          # then Scopi itself:  .venv/bin/scopi
 #
-# Needs Python 3.12 or newer (3.13 is what the Raspberry Pi 5 runs). On the Pi, `bash packaging/install_pi.sh` does all of this for you (see usage.md).
+# Needs Python 3.12 or newer as declared in pyproject.toml, but only 3.13 (the Raspberry Pi 5 and the development Mac) has been tested. On the Pi, `bash packaging/install_pi.sh` does all of this for you (see usage.md).
 # On Linux the PySide6 wheels need glibc 2.39 or newer: Raspberry Pi OS Trixie, not Bookworm.
 #
 # No version pins. Versions the test suite passed with on the development Mac:
@@ -32,3 +32,5 @@ PySide6-Essentials
 # Optional:
 #   pydicom             read DICOM files             (pip install pydicom, or pip install -e ".[dicom]")
 #   pytest, pytest-qt   run the test suite           (pip install pytest pytest-qt, or pip install -e ".[test]")
+#   ruff                lint the code                (pip install ruff, or pip install -e ".[lint]")
+#   all of the above    for contributors             (pip install -e ".[dev]", see CONTRIBUTING.md)

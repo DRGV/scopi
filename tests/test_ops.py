@@ -6,7 +6,6 @@ from scipy import ndimage as ndi
 from skimage import filters as skf
 from skimage import measure
 
-from scopi import ops
 from scopi.core import ImageDoc, Rect, commands
 from scopi.ops import base
 

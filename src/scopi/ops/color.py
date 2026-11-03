@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .base import Choice, Filter, Simple, register, cast_like
+from .base import Filter, register, cast_like
 
 CAT = "Image>Type"
 

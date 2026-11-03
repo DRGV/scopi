@@ -9,11 +9,10 @@ import pandas as pd
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLabel, QListWidget,
-                               QPushButton, QSlider, QTableView, QVBoxLayout, QWidget, QDoubleSpinBox)
+                               QPushButton, QTableView, QVBoxLayout, QWidget, QDoubleSpinBox)
 
 from ..core import luts
 from ..core.results import ResultsTable
-from ..core.roi import Roi
 from . import render
 
 

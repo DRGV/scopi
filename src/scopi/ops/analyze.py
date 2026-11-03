@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from skimage import measure
 
-from .base import Bool, Choice, Float, Int, Simple, register
+from .base import Bool, Float, Simple, register
 
 CAT = "Analyze"
 

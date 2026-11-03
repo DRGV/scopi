@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/DRGV/scopi/security/advisories/new
+    about: Please report vulnerabilities privately, not as a public issue. See SECURITY.md.
+  - name: Troubleshooting guide
+    url: https://github.com/DRGV/scopi/blob/main/usage.md#11-troubleshooting
+    about: Camera not found, a blank live view, Qt will not start? Common problems and their fixes are listed here.

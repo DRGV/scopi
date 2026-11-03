@@ -7,7 +7,6 @@ from __future__ import annotations
 import glob
 import sys
 import threading
-from typing import Callable
 
 import numpy as np
 

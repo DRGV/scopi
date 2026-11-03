@@ -1,9 +1,5 @@
-NOTE (2026-10-30): this plan was written when the application was called ImagePi. Read "imagepi" / "ImagePi" as "scopi" / "Scopi":
-`python -m scopi` (or the `scopi` command), data folder ~/.scopi, environment variables SCOPI_*, test images ~/scopi-test. The Pi's project
-folder (~/Code/imagepi) and the GitHub repository keep their names until they are renamed.
-
-ImagePi - Pi 5 test 6
-=====================
+Scopi - Pi 5 test 6
+===================
 
 What test5 and test5c showed
 PASSED on the Pi:
@@ -25,7 +21,7 @@ CHANGED on the Mac, none of it on the Pi yet:
    down reads exactly 90 or -90.
 
 Rules
-- Normal user "sch", bash, venv active (cd ~/Code/imagepi && source .venv/bin/activate). sudo only where a step says so.
+- Normal (non-root) user, bash, venv active (cd ~/Code/scopi && source .venv/bin/activate). sudo only where a step says so.
 - Stop at the first failure and send me the output. "Send me" = paste the text.
 - Closing a changed image asks "Save changes to ...?": click Discard. Do not draw a selection on a picture unless a step says so.
 - Read the status line right after the step: it disappears after 5 seconds.
@@ -42,7 +38,7 @@ A1. On the Mac:
       git push
     The command names only the folders and files to add, so resultsC.csv, test5results.txt and testresults5c.txt stay out.
 A2. On the Pi:
-      cd ~/Code/imagepi
+      cd ~/Code/scopi
       git pull
       QT_QPA_PLATFORM=offscreen python -m pytest -q 2>&1 | tail -5
     Expect "202 passed". Send me the last lines.
@@ -51,9 +47,9 @@ A2. On the Pi:
 PART B - The status line (about 5 minutes)
 ------------------------------------------
 
-Start the app with: python -m imagepi 2>&1 | tee ~/gui_6.log
+Start the app with: python -m scopi 2>&1 | tee ~/gui_6.log
 
-B1. File > Open ~/imagepi-test/cells_stack.tif (label under the picture: 1/3). Process > Filters > Gaussian Blur..., Sigma 3, both boxes unticked, OK.
+B1. File > Open ~/scopi-test/cells_stack.tif (label under the picture: 1/3). Process > Filters > Gaussian Blur..., Sigma 3, both boxes unticked, OK.
     Read the status line.                                                       Expect: "Gaussian Blur: ... s, frame 1 of 3 only"
     Press Ctrl+Z, read it.                                                      Expect: "Undo: Gaussian Blur"
     Press Ctrl+Z again, read it.                                                Expect: "Nothing to undo"
@@ -65,7 +61,7 @@ B2. Click the slider once and press End (label 3/3). Gaussian Blur..., Sigma 3, 
     Press Ctrl+Z.                                                               Expect: "Undo: Gaussian Blur"
 B3. Image > Adjust > Auto Threshold..., leave Process entire stack UNTICKED, OK. Expect: "Auto Threshold: ... s, all 3 frames"
     (it changes the pixel type, so it always does every frame). Press Ctrl+Z.   Expect: "Undo: Auto Threshold"
-B4. Ctrl+W, Discard. File > Open ~/imagepi-test/cells_gray.png. Gaussian Blur..., Sigma 3, OK.
+B4. Ctrl+W, Discard. File > Open ~/scopi-test/cells_gray.png. Gaussian Blur..., Sigma 3, OK.
                                                                                 Expect: "Gaussian Blur: ... s" with nothing after the seconds.
 Send me the status line text of every step (about 9 lines), and tell me if any of them was missing or different. Then Ctrl+W, Discard.
 
@@ -73,7 +69,7 @@ Send me the status line text of every step (about 9 lines), and tell me if any o
 PART C - The frame slider (about 3 minutes)
 -------------------------------------------
 
-C1. File > Open ~/imagepi-test/cells_stack.tif (fresh; label 1/3). Look under the slider: there should be 3 small tick marks.
+C1. File > Open ~/scopi-test/cells_stack.tif (fresh; label 1/3). Look under the slider: there should be 3 small tick marks.
 C2. Click in the groove to the right of the handle, in the middle of the slider. Expect frame 2 (label 2/3), not 3. Click in the groove right of the handle again:
     3/3. Click in the groove left of the handle: 2/3.
 C3. Put the pointer over the slider and turn the mouse wheel one notch (up, then down): the frame changes by one each time, not to the end.
@@ -84,19 +80,19 @@ Tell me "ok" for C1 to C4, or what happens. Then Ctrl+W (nothing was changed, no
 PART D - The preview area frame (about 5 minutes)
 -------------------------------------------------
 
-D1. File > Open ~/imagepi-test/cells_18mp_rgb.tif (it opens fitted; press Ctrl+0 if not). Process > Filters > Gaussian Blur..., Sigma 12, tick Preview.
+D1. File > Open ~/scopi-test/cells_18mp_rgb.tif (it opens fitted; press Ctrl+0 if not). Process > Filters > Gaussian Blur..., Sigma 12, tick Preview.
     After a moment a dashed frame with the word "Preview area" appears around the middle of the picture, and only inside it is the picture blurred.
     The frame should cover about a quarter of the width and a third of the height. Tell me whether the frame and its label are easy to see on this picture.
 D2. Cancel (the frame goes away with the preview). Press Ctrl+1 (100 %). Open Gaussian Blur... again, tick Preview: no frame (the preview covers everything you can see).
     Cancel.
-D3. Ctrl+W. File > Open ~/imagepi-test/cells_gray.png (fitted). Gaussian Blur..., tick Preview: no frame (the preview covers nearly the whole picture). Cancel. Ctrl+W.
+D3. Ctrl+W. File > Open ~/scopi-test/cells_gray.png (fitted). Gaussian Blur..., tick Preview: no frame (the preview covers nearly the whole picture). Cancel. Ctrl+W.
 Send me "ok" for D1 to D3, or what you see, and anything you would change about the frame (colour, thickness, label).
 
 
 PART E - Shift-dragged lines (about 5 minutes)
 ----------------------------------------------
 
-E1. File > Open ~/imagepi-test/known_shapes.png. Analyze > Show Results, click Clear. Choose the Line tool in the toolbar.
+E1. File > Open ~/scopi-test/known_shapes.png. Analyze > Show Results, click Clear. Choose the Line tool in the toolbar.
     Hold Shift and drag from left to right across a square, then press Ctrl+M.                                       -> Angle 0
 E2. Hold Shift and drag from right to left across a square and end the pointer a few pixels ABOVE the line; Ctrl+M.     -> Angle 180
     Do it again and end the pointer a few pixels BELOW the line; Ctrl+M.                                              -> Angle 180 (it used to be -180)

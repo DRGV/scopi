@@ -181,7 +181,7 @@ class TouptekCamera(CameraBackend):
             self._cam = self._tc.Toupcam.Open(camera_id)
         except self._tc.HRESULTException as ex:
             if _hr(ex) == E_ACCESSDENIED:
-                raise PermissionDenied("permission denied opening the camera: install packaging/99-toupcam.rules (udev) and replug") from ex
+                raise PermissionDenied("permission denied opening the camera: install packaging/70-toupcam.rules (udev) and replug") from ex
             raise CameraError(f"failed to open camera: {_hr_text(ex)}") from ex
         if not self._cam:
             raise CameraError("failed to open camera")

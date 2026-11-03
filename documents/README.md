@@ -13,12 +13,9 @@ Material for people who want to understand, test or extend Scopi. To *use* Scopi
 
 Each plan is a plain-text checklist for a person sitting at the Pi: what to run, what to expect, and exactly what to send back. They were written one round
 at a time, each starting from what the previous round found, so [implementation.md](implementation.md) is the place to read the findings and these files are the
-places to repeat the checks. They are written for the maintainer's own Pi and camera (user `sch`, the project in `~/Code/imagepi`, test images in
+places to repeat the checks. They are written for the maintainer's own Pi and camera (the project in `~/Code/scopi`, test images in
 `~/scopi-test`) and sometimes name files that are not in the repository, such as the raw result files of earlier rounds; adapt the names to your set-up.
 Run `scripts/make_test_images.py` first: several steps use the images it writes.
-
-The plans were written when the application was still called **ImagePi**. Read `imagepi` / `ImagePi` in them as `scopi` / `Scopi`: the command is `python -m scopi`
-(or `scopi`), the data folder `~/.scopi`, the environment variables `SCOPI_*` and the test images `~/scopi-test`. Each plan carries a note saying so.
 
 | Plan | What it covers |
 |---|---|
@@ -92,8 +89,9 @@ real wrapper (it rejects the wrong argument types), which found a real bug once:
 ### Run the tests
 
 ```
-.venv/bin/python -m pip install -e ".[test]"
-QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q      # 214 tests, about 15 seconds; the Qt tests run without a window
+.venv/bin/python -m pip install -e ".[dev]"                  # pytest, pytest-qt, ruff and pydicom; ".[test]" is enough for the tests alone
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q      # 228 tests, about 15 seconds; the Qt tests run without a window
+.venv/bin/ruff check .                                       # the lint rules in pyproject.toml; CI runs both commands (see ../CONTRIBUTING.md)
 ```
 
 `tests/test_ui.py` drives the real windows. When you test a dialog, go through the real entry point (`OpRunner.run` with a modal dialog) and not by calling the

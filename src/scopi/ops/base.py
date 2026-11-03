@@ -8,7 +8,7 @@ generated), ``note`` flags and a ``run``. Nothing here depends on Qt.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -162,7 +162,7 @@ def register(cls: type[Op]) -> type[Op]:
 def menu_tree() -> dict:
     """Nested dict of category path -> list of op classes, for building menus."""
     tree: dict = {}
-    for path, cls in sorted(REGISTRY.items()):
+    for _path, cls in sorted(REGISTRY.items()):
         node = tree
         for part in (cls.category.split(">") if cls.category else []):
             node = node.setdefault(part, {})

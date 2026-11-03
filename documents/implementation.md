@@ -5,9 +5,6 @@ decisions, the architecture, the milestones, what the reference material (Fiji, 
 way. It is meant for anyone who wants to understand the code base or extend it. To see what the application can do read the [readme](../readme.md);
 to install and use it read the [usage guide](../usage.md).
 
-Naming: Scopi was called **ImagePi** until 2026-10-30. This record was written under the old name and keeps it where it describes what happened in the test rounds
-(the plans in `pi-test-plans/` still say `imagepi`: read it as `scopi`); module paths, commands and data folders below use the current names.
-
 Where the files mentioned below live:
 
 - `pi-test-plans/` (next to this file): the step-by-step Raspberry Pi test plans the rounds below refer to (`test1.txt` to `test6.txt`, `testsr.txt`,
@@ -111,27 +108,27 @@ default (`--exposure-ms`, `--auto-limit-ms`; `camdiag --exposure-ms`) and prints
 
 Round 4 (2026-10-27, `testsr.txt` and part of test3; 175 passed on the Pi in 12 s). USB link: at a fixed 10 ms exposure `pi_bringup.py camera` gave 4.8 fps at 4912x3684, 17.2 at
 2456x1842 and 31.8 at 1228x922 (vendor spec 5.6 / 18.1 / 32.2; `camdiag` 4.3 / 16.7 / 31.9), so `usbfs_memory_mb` 16 is not a limit and test3 Part G is not needed. With the
-auto limit at 100 ms the camera chose 21 ms on the bare stage. In the app: the overlay shows the exposure (it printed `21.052 ms`, now one decimal), Auto limit works (the user
+auto limit at 100 ms the camera chose 21 ms on the bare stage. In the app: the overlay shows the exposure (it printed `21.052 ms`, now one decimal), Auto limit works (the maintainer
 works with 75 to 150 ms, so 100 stays the default), 32.1 / 17.0 / 4.2 fps without freezing, lag about 0.5 s at 4912x3684 and barely visible at 1228x922 (a frame takes 230 ms
 at full size, so that is the camera's rate, not a bug), Bit depth reads "8-bit only", quitting leaves no `VIDEOIO`/`textinput` lines and the camera is free afterwards.
 Orientation: with no boxes ticked the live image is the paper mirrored left-to-right; the eyepiece shows the paper rotated 180 degrees; ticking Flip vertically alone matches
-the eyepiece. The user wants no ticks to mean the eyepiece view, for a camera mounted with its USB cable pointing to the rear of the microscope. Crop with Flip horizontally ticked
+the eyepiece. The maintainer wants no ticks to mean the eyepiece view, for a camera mounted with its USB cable pointing to the rear of the microscope. Crop with Flip horizontally ticked
 selected a region shifted upward (`a.png`, `a-cropped.png`, `a.mov`): the selection started at y 196 of 922 and the crop came from about y 42 = 922 - 196 - 684, i.e. the vertically
 mirrored place, with x correct. One model explains both findings: this camera delivers its frames upside down relative to the eyepiece view, and its hardware ROI is given in the
 eyepiece view's coordinates. A second snap in the same live view timed out ("Timed out waiting for still image"), restarting the live view fixed it. Gaussian Blur: "the slider
-produces no change in preview mode". Test3 Part D otherwise passed: outlines easy to see (the user wants colour and width selectable later), Otsu + Analyze Particles as
+produces no change in preview mode". Test3 Part D otherwise passed: outlines easy to see (the maintainer wants colour and width selectable later), Otsu + Analyze Particles as
 expected, Undo across Image > Type > 8-bit restores histogram and Brightness/Contrast, Gaussian sigma 2 on the 18 MP RGB image about 0.5 s, `out.tif` 54,287,808 bytes and
 correct, the simulated camera fine. Speed (`render`, `benchmark.py`), Pi vs round 2: repaint at fit 16.4 ms (was 35.7), pan 15.2 (31.0), zoom sweep 14.1 (23.9); 18 MP gray
 Gaussian 153 ms (658), RGB Gaussian 534 ms (2040), gray median r=3 54 ms, Otsu 106 ms (gray) / 483 ms (RGB); peak RSS 356 / 527 MB; `get_throttled` 0x0. The only `textinput` lines
 left came from `pi_bringup.py render`, which makes its own QApplication (now silenced too). Test3 E1: a 0.5 mm span measured 0.499998 mm (calibrated with 1 mm at 4x), but the line
-row had empty X, Y and Unit columns and no pixel length, so the user could not see the pixel size.
+row had empty X, Y and Unit columns and no pixel length, so the maintainer could not see the pixel size.
 Fixes (Mac, 193 tests): `CameraBackend.delivered_flip` (the ToupTek is `(False, True)`) and the flips are now relative to the eyepiece view, so no ticks match the eyepiece and the hardware
 crop is mapped in the eyepiece view's coordinates (settings keys renamed `mirror_h`/`mirror_v` so the old saved flips are not reused); `TouptekCamera.snap` restarts the stream after
 each still and once more if a still does not arrive, re-applies the crop, uses the vendor demo's peek call, and its timeout error lists the SDK events seen; the parameter dialog
 throttles its preview instead of debouncing it and the runner shows older preview results when no newer one has arrived; line measurements add X, Y (the midpoint), Unit and
 `Length (px)`; Set Scale reports "Scale: 1 pixel = 0.0025 mm (400 pixels per mm)" in the status line; `pi_bringup.py roitest` measures where a hardware crop lands (template match of
 the crop in the full frame) and `snaptest` repeats snaps, and `render` silences the Wayland text-input line. Not yet re-tested on the Pi: all of these; the orientation model is an inference
-from one crop screenshot and the user's description, `roitest` is how it gets confirmed.
+from one crop screenshot and the maintainer's description, `roitest` is how it gets confirmed.
 
 Round 5 (2026-10-30, `test4.txt`, results in `references/test4results.txt`; 193 passed on the Pi in 17.9 s).
 - **Orientation model confirmed on the camera.** `pi_bringup.py roitest` at all three resolutions: the hardware crop lands at the requested x but at the vertically mirrored y (1228x922: asked for y 92 with a 276-pixel-high
@@ -146,7 +143,7 @@ Round 5 (2026-10-30, `test4.txt`, results in `references/test4results.txt`; 193 
 - **Measuring and calibration** (the status line and Results columns added in round 4 work). Pixel size at 4912 px wide (Results `Length` / `Length (px)`): 4X 0.599 um/px (1669.3 px/mm), 10X 0.243 um/px (4118.6 px/mm), 40X 0.0607 um/px (16463.6 px/mm); 4X to 40X is a factor 9.86.
   A hand-drawn line along a known span measured 0.499993 mm (0.5 mm at 4X, scale set from a 1 mm line), 0.499482 mm (0.5 mm at 10X, -0.10 %) and 0.200012 mm (0.2 mm at 40X, +0.006 %); `Length (px)` times the pixel size equals `Length`.
   Quitting leaves no `VIDEOIO`/`textinput` line in the log, and `pi_bringup.py render` prints none either.
-- **The Preview box did nothing, for every filter.** The user dragged the Gaussian slider and saw no change (as in rounds 3 and 4), and typing a value and pressing Enter "blurred the image": Enter presses the dialog's OK button, so that was the
+- **The Preview box did nothing, for every filter.** The maintainer dragged the Gaussian slider and saw no change (as in rounds 3 and 4), and typing a value and pressing Enter "blurred the image": Enter presses the dialog's OK button, so that was the
   result being applied, not a preview. `OpRunner.run` connected the dialog's preview signals only `if dlg.preview_box.isVisible()`, which is evaluated before `exec()` and so is always False (a widget is not visible until its dialog is
   shown). The signals were never connected, and every earlier test either called `OpRunner._preview` directly or built the dialog by hand, so none went through `run()`. The throttle added in round 4 was not the cause (it stays, it follows
   a drag better). `ParaDialog.whole_stack` had the same flaw the other way round (`isVisible()` read after the dialog closed), so "Process entire stack" was always ignored.
@@ -158,7 +155,7 @@ canvas draws, cancelling must restore them, and "Process entire stack" must filt
 Round 6 (2026-10-30, `test5.txt`, results in `test5results.txt`; 195 passed on the Pi in 15.0 s).
 - **Preview verified on the Pi.** Gaussian Blur follows the slider while it is dragged and follows a typed Sigma (no Enter); Cancel restores the original at once; OK took 0.06 s on `cells_gray.png` and Undo restores it; Median's radius slider and
   Auto Threshold's Method/Objects boxes preview too. On the 18 MP RGB image at 100 % a change takes under a second and nothing freezes. The preview only covers a crop of at most 1200 x 1200 px, so at Fit the central square only; that is
-  acceptable, but the user wants it shown, and wants to be able to move it. Open: the dialog is modal, so while it is up the main menus and the canvas cannot be used (my test text wrongly said to try a menu); moving the preview area means
+  acceptable, but the maintainer wants it shown, and wants to be able to move it. Open: the dialog is modal, so while it is up the main menus and the canvas cannot be used (the test plan wrongly said to try a menu); moving the preview area means
   panning or zooming with the dialog open (not scheduled). Until then: zoom (Ctrl+1) and pan to the spot before opening the dialog, and the preview covers what is on screen.
 - **Frame slider (C1).** With 3 frames the handle only moves at the halfway points and a click in the groove jumped to the last frame, so frame 2 could not be reached with the mouse. Reproduced on the Mac (offscreen Qt uses the same Fusion style as the Pi; the macOS
   style jumps to the click and hides it): the slider's page step was Qt's default 10, more than the 1 to 3 range, so a click in the groove or one wheel notch went to the end.
@@ -177,7 +174,7 @@ picture on screen (not at 100 % zoom, and not for a 1228 x 922 picture at Fit, w
 
 Round 7 (2026-10-30, `test6.txt`, results in `test6results.txt`).
 - **Reported as "expected results" for every step of Parts B, C and D**: the status line messages (stack filters, Undo/Redo, a single image), the frame slider (one frame per click or wheel notch, tick marks), and the "Preview area" frame on the 18 MP image (present at Fit,
-  absent at 100 % and on the 1228 x 922 picture). The user did not paste the status line texts or say whether the frame needs a different colour, thickness or label (taken as: no change wanted); the exact wording of the messages is checked by the Mac tests only.
+  absent at 100 % and on the 1228 x 922 picture). The maintainer did not paste the status line texts or say whether the frame needs a different colour, thickness or label (taken as: no change wanted); the exact wording of the messages is checked by the Mac tests only.
 - **Shift-dragged lines (E), measured:** every line pointing left reads exactly `180.0` (three rows, never -180; before the fix the pointer side decided between 180 and -180), left to right `0.0`, straight up `90.0`, straight down `-90.0`, up-right `45.0`. An eighth row, a
   hand-drawn line without Shift pointing left and ending slightly below, reads `-179.415`: that is the normal `atan2` range (-180 to 180), not an error.
 - Parts F: no `VIDEOIO`/`textinput` lines and no `Traceback` in `gui_6.log`.
@@ -190,7 +187,7 @@ On the dev Mac an 18 MP 8-bit image repaints in about 20 ms (fit, 100%, 25% and 
 about 33 ms; peak RSS for a 16-bit RGB 18 MP image was about 0.8 GB. These are Mac numbers, not Pi numbers.
 
 **Not verified, and needing the hardware:**
-- On the Pi 5: **the rename from ImagePi to Scopi** (2026-10-30): `git pull` then `bash packaging/install_pi.sh` (removes the old `imagepi` package and menu entry), the first start copying `~/.imagepi` to `~/.scopi` and the old Qt settings to the new ones (tested on the Mac, including a start of the real `main()` in a temporary home), the `scopi` command and menu entry. 212 tests on the Mac (204 before the rename, 8 new ones for the migration).
+- On the Pi 5: **the narrower USB rule** (`packaging/70-toupcam.rules`, installed by `install_toupcam.py --udev` or `--udev-only`; 2026-11-03). After installing it, re-plug the camera and check that `pi_bringup.py camera` works from a terminal on the Pi's own desktop **and** from an SSH login (the second needs your user in the group `plugdev`; `groups` shows it). If it does not, `ls -l /dev/bus/usb/*/*` and `udevadm test` on the camera's device path show why.
 - On the Pi 5: nothing from rounds 1 to 7 is waiting for a re-test; the full `pytest` run passes there (204 tests). Everything listed in earlier rounds was re-tested by hand in rounds 4 to 7 (Preview box, "Process entire stack", Undo, status line, frame slider, "Preview area" frame, Shift-drag angles).
 - Any real camera: 16-bit RGB48 pull (the U3CMOS18000KPA has none; it is untestable on it), hotplug events. Verified on the OMAX camera in rounds 3 to 5: frames, RGB byte order, hardware ROI crop and its position (`roitest`, in the eyepiece view's coordinates), the eyepiece-view orientation (`delivered_flip`), snaps in a row (script and app), unplug, fps at each resolution with a fixed 10 ms exposure, calibrated measurements at 4X/10X/40X.
 - The `V4L2Camera` fallback and DICOM reading (no device / `pydicom` not installed here).
@@ -201,8 +198,8 @@ about 33 ms; peak RSS for a 16-bit RGB 18 MP image was about 0.8 GB. These are M
 `references/omax/toupcamsdk.20260818` (v60.32327.20260818) is a drop-in replacement for the 2023 SDK (v54.22876.20230702) that the
 tests ran against: every constant and method the backend uses is present, `PullImageV3`/`ToupcamFrameInfoV3` are unchanged,
 and the arm64 build still needs only GLIBC 2.17. Its layout differs (`linux/arm64/glibc/`, `mac/`), which the loader and
-`install_toupcam.py` now both handle. Its udev rule adds vendor id `04b4` next to `0547`; `packaging/99-toupcam.rules`
-has both. `toupnamsdk` (network cameras) and `uvchamsdk` (UVC-class cameras) are not used.
+`install_toupcam.py` now both handle. Its udev rule adds vendor id `04b4` next to `0547`; `packaging/70-toupcam.rules`
+has both (but see the USB permissions decision below). `toupnamsdk` (network cameras) and `uvchamsdk` (UVC-class cameras) are not used.
 
 The Pi uses a `toupcamsdk.20260519` zip (also the 2026 layout) extracted into `vendor/toupcam/`. On the Mac `vendor/` is empty
 since the reference files moved to `references/`; `references/toupcam/` is the old `vendor/toupcam/` (2023 and 2026 files
@@ -234,6 +231,7 @@ merged, loads as v60.32327.20260818). Run `install_toupcam.py` (see the Mac quic
 | First milestone | Viewer + ROI/measure + filters. Camera is milestone 2, analysis is milestone 3. |
 | Avoid | numba, wxPython, vispy, QtMultimedia (its FFmpeg plugin is a known Pi packaging risk). |
 | License | **GNU GPL version 3 or (at your option) any later version** (`GPL-3.0-or-later`), copyright Dwight Vieira, chosen 2026-10-30 (first as version 3 only, changed the same day): the `LICENSE` file (the unmodified GPLv3 text), `license = "GPL-3.0-or-later"` in `pyproject.toml` and a two-line SPDX notice with the copyright at the top of every `.py` and `.sh` file. The dependencies (BSD, MIT, Apache-2.0, PSF, LGPL) can be combined with it. The ToupTek SDK is proprietary, is not distributed and is loaded at run time. ImagePy's license text has the advertising clause of the four-clause BSD license, which is not GPL-compatible: no ImagePy code was copied and none should be. |
+| USB permissions | `packaging/70-toupcam.rules` grants the camera to the logged-in desktop user (`TAG+="uaccess"`) and to the group `plugdev` (`MODE="0660"`) instead of using the SDK's `MODE="0666"`, which lets every user on the machine write to every device of two vendor ids (one of them is Cypress's, shared by many unrelated devices). It is named `70-` because `uaccess` only works from a rule that runs before `73-seat-late.rules`. `install_toupcam.py --udev` (also used by `install_pi.sh`) installs it and removes the old `99-toupcam.rules`. **Not yet verified on the Pi** (2026-11-03): check that the camera opens from the desktop terminal and over SSH. |
 
 ## What the reference material contains
 
@@ -278,7 +276,7 @@ API points that shape the design:
 - `Toupcam_HotPlug` is available on Linux and macOS. Register it for plug/unplug notifications, then re-run `EnumV2`. Also handle `EVENT_DISCONNECTED`.
 - On Linux a "permission denied" error means the udev rule is missing.
 - Camera specs (vendor page): 1/2.3" color CMOS, 4912x3684 at 5.6 fps, 2456x1842 at 18.1 fps, 1228x922 at 32.2 fps. A full-res RGB24 frame is about 54 MB.
-- **Licensing:** the SDK binaries are vendor-controlled. Do not commit them or the zip to a public repo. Keep them in a git-ignored `vendor/toupcam/` populated by an install script from the user's `references/omax/SDK` zip.
+- **Licensing:** the SDK binaries are vendor-controlled. Do not commit them or the zip to a public repo. Keep them in a git-ignored `vendor/toupcam/` populated by an install script from the maintainer's `references/omax/SDK` zip.
 
 ### Risks not yet verified
 - Whether the first run's `E_BUSY` was only the GUI holding the camera. It did not come back in round 3 (camera idle, nothing else running); if it does, `pi-test-plans/test3.txt` Part G lists the candidates (stale process, `usbfs_memory_mb`, USB power or bandwidth, the 2026-05-19 SDK build).
@@ -310,9 +308,10 @@ scopi/                     (src layout, pyproject.toml, Python >= 3.12)
   ui/        main_window.py, canvas.py (QGraphicsView, mip pyramid), tools.py (ROI/measure
              state machine), para_dialog.py (auto-built from view), panels (histogram,
              results, ROI manager, camera controls), theme.py
+  resources/ scopi.png (application icon: window, Dock, desktop launcher; shipped as package data)
   app.py, __main__.py
 tests/       pytest (core/io/ops headless; UI via pytest-qt with QT_QPA_PLATFORM=offscreen)
-packaging/   99-toupcam.rules, scopi.desktop, Pi install script
+packaging/   70-toupcam.rules, scopi.desktop, Pi install script
 vendor/toupcam/   git-ignored SDK files (see licensing note)
 ```
 

@@ -1,14 +1,20 @@
 # Scopi
 **Microscope image viewing, measurement and analysis for the Raspberry Pi 5, with live view and snaps from a USB microscope camera.**
 
+[![CI](https://github.com/DRGV/scopi/actions/workflows/ci.yml/badge.svg)](https://github.com/DRGV/scopi/actions/workflows/ci.yml)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+
 Scopi is a stand-alone Python application (Qt, via PySide6) modelled on **[ImageJ](https://imagej.net/ij/) and [Fiji](https://imagej.net/software/fiji/)**.
 It gives a classroom or a bench the familiar ImageJ way of working (open a picture, draw a selection, set the scale, measure, filter, threshold, count particles)
-on a Raspberry Pi 5 with the **OMAX 18 MP USB 3.0 C-mount microscope camera (model A35180U3)** attached. It also runs on a Mac or any Linux
-computer for viewing and processing pictures and should work with other Omax or Touptek based USB cameras.
+on a Raspberry Pi 5 with the **OMAX 18 MP USB 3.0 C-mount microscope camera (model A35180U3)** attached. It has also been run on a Mac for viewing and
+processing pictures (other Linux computers and Windows are untested), and it should work with other OMAX or ToupTek based USB cameras (see
+[Other cameras](usage.md#other-cameras)).
 
 - **[usage.md](usage.md)**: installation, starting Scopi, adding the camera, live view versus snaps, calibration, troubleshooting
 - **[requirements.txt](requirements.txt)**: the Python packages it needs
 - **[documents/](documents/README.md)**: implementation notes, design decisions, test history and how to extend the project
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: set up a development copy, run the tests, send a change
+- **[SECURITY.md](SECURITY.md)**: how to report a vulnerability privately, and what counts as one
 
 ## What Scopi can do
 
@@ -61,16 +67,16 @@ computer for viewing and processing pictures and should work with other Omax or 
 | Camera | OMAX 18 MP USB 3.0 C-mount camera A35180U3 (ToupTek `U3CMOS18000KPA`): **the only camera tested** |
 | Calibration | Checked with a 0.01 mm stage micrometer at 4x, 10x and 40x: known distances of 0.2 to 0.5 mm read within about 0.1 % |
 | Development | macOS (Apple silicon), Python 3.13 |
-| Automated tests | 214 tests (`pytest`), all passing on the Mac; the Qt tests run without a display. The 204 that existed before the rename to Scopi all passed on the Pi; the rename itself has not been run there yet |
-| Not tested | The V4L2 fallback camera and DICOM files (no device and no `pydicom` on the test machines) |
+| Automated tests | 228 tests (`pytest`), all passing on the Mac; the Qt tests run without a display. The 204 that existed in the last Pi round all passed on the Pi |
+| Not tested | Python 3.12 on the Pi (the automated tests do pass under 3.12 on the Mac), other Linux computers, Windows, any camera other than the one above, the V4L2 fallback camera and DICOM files (no device and no `pydicom` on the test machines) |
 
 The history of what was tested, found and fixed on the Pi is in [documents/implementation.md](documents/implementation.md).
 
 ## Getting started
 
 ```
-git clone https://github.com/DRGV/imagepi scopi && cd scopi && git switch dev     # dev until it is merged into main
-bash packaging/install_pi.sh /path/to/toupcamsdk.zip                           # Raspberry Pi 5; see usage.md for a Mac or no camera
+git clone https://github.com/DRGV/scopi && cd scopi
+bash packaging/install_pi.sh /path/to/toupcamsdk.zip     # Raspberry Pi 5; see usage.md for a Mac or no camera
 .venv/bin/scopi
 ```
 
@@ -80,12 +86,14 @@ bash packaging/install_pi.sh /path/to/toupcamsdk.zip                           #
 
 | Folder or file | Contents |
 |---|---|
-| `src/scopi/` | The application: `core` (image, selections, calibration, results), `io` (file formats), `ops` (filters, morphology, thresholds, segmentation, analysis), `camera` (ToupTek, V4L2, simulated), `ui` (windows, canvas, panels, camera panel), `plugins` |
+| `src/scopi/` | The application: `core` (image, selections, calibration, results), `io` (file formats), `ops` (filters, morphology, thresholds, segmentation, analysis), `camera` (ToupTek, V4L2, simulated), `ui` (windows, canvas, panels, camera panel), `plugins`, `resources` (the application icon) |
 | `tests/` | The automated tests (`pytest`) |
 | `scripts/` | Helpers: Pi bring-up and diagnostics, benchmark, test images, camera SDK and LUT installers |
 | `packaging/` | Raspberry Pi installer, desktop launcher, USB permission rule for the camera |
 | `documents/` | [Implementation notes and reference material](documents/implementation.md) and the [Raspberry Pi test plans](documents/pi-test-plans) |
 | `LICENSE`, `usage.md`, `requirements.txt`, `pyproject.toml` | The GPL-3.0 license text, usage guide, Python packages, project metadata |
+| `CONTRIBUTING.md`, `SECURITY.md`, `CITATION.cff` | How to contribute, how to report a vulnerability, how to cite Scopi |
+| `.github/` | The CI workflow (lint, tests on Linux and macOS, package check), issue and pull request templates, Dependabot |
 | `vendor/` | Where the camera SDK is installed on your machine (not in the repository; see below) |
 
 ## Thanks
@@ -106,6 +114,8 @@ If you use ImageJ or Fiji in your work, please cite them:
   [doi:10.1038/nmeth.2019](https://doi.org/10.1038/nmeth.2019)
 
 Projects: [ImageJ](https://imagej.net/ij/), [Fiji](https://imagej.net/software/fiji/), [Fiji source](https://github.com/fiji/fiji).
+
+To cite Scopi itself, see [CITATION.cff](CITATION.cff) (GitHub's "Cite this repository" button reads it).
 
 Also thanks to **[ImagePy](https://github.com/Image-Py/imagepy)** (Python, BSD-style license), an earlier attempt at an ImageJ-like application in Python. Its design
 ideas (parameter dialogs generated from a declaration, macro recording, plugin discovery by file name) inspired parts of Scopi; no ImagePy code was copied.
@@ -140,6 +150,12 @@ repository and must not be committed to it: `vendor/` is git-ignored. Each user 
 ([OMAX software page](https://omaxmicroscope.com/pages/software-download), or ToupTek) and installs it with `scripts/install_toupcam.py`. Scopi loads its
 shared library at run time. Without it, Scopi works as an image viewer and analysis tool, and the simulated camera is still available. OMAX's own
 ToupLite program (an x86-64 installer on the same page) is not needed and does not run on a Raspberry Pi.
+
+## Affiliation and trademarks
+
+Scopi is an independent project. It is not affiliated with, endorsed by or sponsored by OMAX, ToupTek, Raspberry Pi Ltd, the US National Institutes of Health, or the
+ImageJ, Fiji or ImagePy projects. Raspberry Pi is a trademark of Raspberry Pi Ltd; all other product and company names are the trademarks of their owners. They are
+used here only to say which hardware and software Scopi works with or is modelled on.
 
 ## License
 

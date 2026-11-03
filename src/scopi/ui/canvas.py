@@ -9,7 +9,6 @@ QGraphicsItems with cosmetic pens so they stay crisp at any zoom.
 
 from __future__ import annotations
 
-import math
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal

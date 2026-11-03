@@ -6,9 +6,26 @@ build-backend = "setuptools.build_meta"
 name = "scopi"
 version = "0.1.0"
 description = "Microscope image viewing and processing for Raspberry Pi 5"
+readme = "readme.md"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [{ name = "Dwight Vieira" }]
+keywords = ["microscopy", "image-analysis", "imagej", "fiji", "raspberry-pi", "pyside6", "qt", "touptek", "omax", "particle-analysis"]
+classifiers = [
+    # No "License ::" classifier: it is deprecated next to the SPDX `license` expression above and setuptools rejects the combination (PEP 639).
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",       # keep in step with the Python versions in .github/workflows/ci.yml (tests/test_metadata.py checks)
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Education",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
 requires-python = ">=3.12"
 dependencies = [
     "numpy",
@@ -26,6 +43,14 @@ dependencies = [
 [project.optional-dependencies]
 dicom = ["pydicom"]
 test = ["pytest", "pytest-qt"]
+lint = ["ruff"]
+dev = ["scopi[dicom,test,lint]"]    # everything a contributor needs: pip install -e ".[dev]"
+
+[project.urls]
+Homepage = "https://github.com/DRGV/scopi"
+Documentation = "https://github.com/DRGV/scopi/blob/main/usage.md"
+Source = "https://github.com/DRGV/scopi"
+Issues = "https://github.com/DRGV/scopi/issues"
 
 [project.scripts]
 scopi = "scopi.app:main"
@@ -35,5 +60,18 @@ scopi = "scopi.app:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+scopi = ["resources/*.png"]       # the application icon
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 160                 # the code base uses long lines; ruff here only looks for mistakes, not style
+
+[tool.ruff.lint]
+select = ["F", "E9", "B"]         # pyflakes (unused names), syntax errors, likely bugs
+ignore = [
+    "B008",                       # Qt virtual methods are written with parent=QModelIndex() defaults
+    "B027",                       # optional camera features (white balance, auto exposure) deliberately default to doing nothing
+]

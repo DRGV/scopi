@@ -13,7 +13,7 @@ pytest.importorskip("PySide6")
 from PySide6.QtCore import QPointF, QSettings, Qt
 from PySide6.QtTest import QTest
 
-from scopi import io
+from scopi import __version__, io
 from scopi.core import ImageDoc, Rect
 from scopi.ops import base
 from scopi.ui.main_window import MainWindow
@@ -51,7 +51,7 @@ def test_open_bad_file_reports(win, monkeypatch, tmp_path):
 
 
 def test_canvas_renders_and_zoom_pan(win, qtbot, blobs):
-    doc = win.add_doc(ImageDoc(blobs, "a"))
+    win.add_doc(ImageDoc(blobs, "a"))
     c = win.current_canvas()
     qtbot.waitUntil(lambda: c.isVisible())
     img = c.grab().toImage()
@@ -119,13 +119,12 @@ def test_filter_error_is_reported_not_raised(win, qtbot, blobs, monkeypatch):
 
     msgs = []
     monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: msgs.append(a[2]))
-    doc = win.add_doc(ImageDoc(blobs, "a"))
+    win.add_doc(ImageDoc(blobs, "a"))
     win.runner.run(base.REGISTRY["Image>Type>RGB to Gray"])
     assert msgs and "not RGB" in msgs[0]
 
 
 def test_dialog_op_with_preview(win, qtbot, blobs, monkeypatch):
-    from scopi.ui import para_dialog
 
     doc = win.add_doc(ImageDoc(blobs, "a"))
     canvas = win.current_canvas()
@@ -643,6 +642,16 @@ def test_menus_cover_registry(win):
         walk(a.menu())
     for cls in base.REGISTRY.values():
         assert cls.title in texts, cls.title
+
+
+def test_help_about_shows_the_version_and_the_license(win, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    shown = []
+    monkeypatch.setattr(QMessageBox, "about", lambda *a, **k: shown.append(a[2]))
+    help_menu = next(a.menu() for a in win.menuBar().actions() if a.text() == "&Help")
+    next(a for a in help_menu.actions() if a.text() == "About Scopi").trigger()           # the real menu entry, not the method
+    assert f"version {__version__}" in shown[0] and "GNU General Public License" in shown[0]
 
 
 def test_theme_and_touch(win, qtbot):
