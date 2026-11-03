@@ -42,7 +42,7 @@ Do this as your normal user, **not with `sudo`**, and run the script with **`bas
    git switch dev
    ```
 3. Download the ToupTek camera SDK zip (see section 1) and note where it is, for example `~/Downloads/toupcamsdk.20260519.zip`.
-4. Run the installer, giving it the SDK zip (leave the zip out if you have no camera yet):
+4. Run the installer, giving it the SDK zip (make sure to update the download location and filename as needed; leave the zip out if you have no camera yet):
    ```
    bash packaging/install_pi.sh ~/Downloads/toupcamsdk.20260519.zip
    ```
@@ -59,7 +59,7 @@ Do this as your normal user, **not with `sudo`**, and run the script with **`bas
    ```
    .venv/bin/scopi
    ```
-   You can give image files on the command line: `.venv/bin/scopi cells.tif`.
+   You can pass it image files on the command line: `.venv/bin/scopi cells.tif`.
 
 Adding the camera SDK later: `.venv/bin/python scripts/install_toupcam.py ~/Downloads/toupcamsdk.20260519.zip --udev`, then unplug and re-plug the camera.
 
@@ -286,24 +286,3 @@ All are run from the project folder with the virtual environment's Python (`.ven
 | Ctrl+Shift+C | Show the camera panel | Ctrl+Shift+S | Snap |
 | Space + drag | Pan | Shift + drag a line | Snap the line to 45 degree steps |
 
-## 13. Upgrading from ImagePi
-
-Scopi was called **ImagePi** until 2026-10-30. If you installed it under the old name:
-
-1. In your existing clone (the folder name does not matter) pull the new code and run the installer again; it is safe to re-run. It removes the old `imagepi`
-   package and its menu entry and installs Scopi:
-   ```
-   git pull
-   bash packaging/install_pi.sh
-   ```
-   By hand instead: `.venv/bin/pip uninstall -y imagepi && .venv/bin/pip install -e ".[test]"` (the old `imagepi` command stops working). Start it with
-   `.venv/bin/scopi`.
-2. **Your saved data is carried over, not lost.** The first time Scopi starts it copies `~/.imagepi` (objective presets, plugins, look-up tables) to `~/.scopi`
-   and the old Qt settings (theme, window layout, the flips and auto limit of each camera) to the new "Scopi" settings. The old folder and settings are left
-   untouched as a backup; delete `~/.imagepi` (and `~/.config/ImagePi` on Linux) once you are happy. Anything that already exists under the new name wins.
-3. Names that changed and are **not** carried over by themselves:
-   - the environment variables are now `SCOPI_PRESETS`, `SCOPI_LUTS`, `SCOPI_PLUGINS`, `SCOPI_TOUPCAM_DIR` and `SCOPI_VENV` (were `IMAGEPI_...`);
-   - a plugin you wrote must import from `scopi` instead of `imagepi` (`from scopi.ops import Filter, register`); the entry-point group is now `scopi.plugins`;
-   - the time-lapse folder offered by default is `~/Scopi-timelapse` (pictures already in `~/ImagePi-timelapse` stay there), and `scripts/make_test_images.py`
-     writes to `~/scopi-test` (an existing `~/imagepi-test` still works if you give its path);
-   - the GitHub repository and your clone's folder keep their names until you rename them.

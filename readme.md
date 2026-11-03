@@ -1,13 +1,10 @@
 # Scopi
-
-*(Scopi was called ImagePi until 2026-10-30; see [Upgrading from ImagePi](usage.md#13-upgrading-from-imagepi).)*
-
 **Microscope image viewing, measurement and analysis for the Raspberry Pi 5, with live view and snaps from a USB microscope camera.**
 
 Scopi is a stand-alone Python application (Qt, via PySide6) modelled on **[ImageJ](https://imagej.net/ij/) and [Fiji](https://imagej.net/software/fiji/)**.
 It gives a classroom or a bench the familiar ImageJ way of working (open a picture, draw a selection, set the scale, measure, filter, threshold, count particles)
 on a Raspberry Pi 5 with the **OMAX 18 MP USB 3.0 C-mount microscope camera (model A35180U3)** attached. It also runs on a Mac or any Linux
-computer for viewing and processing pictures.
+computer for viewing and processing pictures and should work with other Omax or Touptek based USB cameras.
 
 - **[usage.md](usage.md)**: installation, starting Scopi, adding the camera, live view versus snaps, calibration, troubleshooting
 - **[requirements.txt](requirements.txt)**: the Python packages it needs
@@ -35,8 +32,7 @@ computer for viewing and processing pictures.
   subtraction and a 3 x 3 smooth.
 - Thresholds: automatic (Otsu, Li, Triangle, Isodata, Yen, Mean), manual and local. Morphology: erode, dilate, open, close, fill holes, skeletonize, outline,
   remove small objects, watershed. Conversion between 8-, 16- and 32-bit and RGB to grey, crop, flip and rotate.
-- Every parameter dialog has a **live preview** that follows its slider. Filters run in the background, so the window stays usable, and they can be applied to
-  one frame or to a whole stack (the status line says which).
+- Every parameter dialog has a **live preview** that follows its slider. Filters  can be applied to one frame or to a whole stack (the status line says which).
 - Stacks: Z projection (maximum, minimum, mean, sum, median, standard deviation) and extended depth of field.
 
 ### Analyse
@@ -94,7 +90,7 @@ bash packaging/install_pi.sh /path/to/toupcamsdk.zip                           #
 
 ## Thanks
 
-Scopi would not exist without **ImageJ** and **Fiji**, and it is a thank-you to the people who made them.
+Scopi would not exist without **ImageJ** and **Fiji**. A huge thank you to the people who made them.
 
 **ImageJ** was created by Wayne Rasband at the US National Institutes of Health and has been shaped for decades by its users and plugin authors. It taught
 a generation of scientists and students how to measure a picture. **Fiji** ("Fiji Is Just ImageJ"), built by a community of developers, turned it into the
