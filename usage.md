@@ -15,13 +15,12 @@ How to install Scopi, start it, open images, connect the microscope camera and t
 - [10. Helper scripts](#10-helper-scripts)
 - [11. Troubleshooting](#11-troubleshooting)
 - [12. Keyboard shortcuts](#12-keyboard-shortcuts)
-- [13. Upgrading from ImagePi](#13-upgrading-from-imagepi)
 
 ## 1. What you need
 
 | | |
 |---|---|
-| Computer | A Raspberry Pi 5 (Raspberry Pi OS **Trixie**, 64-bit, Python 3.13) is the target. Any Mac or Linux computer with Python 3.12 or newer works for viewing, processing and developing. |
+| Computer | A Raspberry Pi 5 (Raspberry Pi OS **Trixie**, 64-bit, Python 3.13) is the target. A Mac has also been used, for viewing, processing and developing. Other Linux computers and Windows have not been tried. Python 3.13 is the version that has been tested; the project declares 3.12 or newer, which is untested. |
 | Camera (optional) | The **OMAX 18 MP USB 3.0 C-mount camera (A35180U3)**, which is a ToupTek `U3CMOS18000KPA`. It is the only camera that has been tested (see [Other cameras](#other-cameras)). Plug it into a **USB 3 (blue) port**. Without it everything except the live camera works, and a simulated camera is built in for trying the camera panel. |
 | Camera SDK | The ToupTek SDK (`toupcamsdk*.zip`) is the vendor's software and is **not** included in this repository; download it from the [OMAX software page](https://omaxmicroscope.com/pages/software-download) or from ToupTek. Only the camera needs it. |
 | Network | The installer downloads several hundred MB of Python packages (PySide6 alone is about 260 MB). On a slow link it can take several minutes; it retries by itself. |
@@ -35,11 +34,10 @@ Do this as your normal user, **not with `sudo`**, and run the script with **`bas
    ```
    sudo apt update && sudo apt full-upgrade -y && sudo apt install -y git
    ```
-2. Get the code. Use the `dev` branch until it has been merged into `main`:
+2. Get the code:
    ```
-   git clone https://github.com/DRGV/imagepi scopi
+   git clone https://github.com/DRGV/scopi
    cd scopi
-   git switch dev
    ```
 3. Download the ToupTek camera SDK zip (see section 1) and note where it is, for example `~/Downloads/toupcamsdk.20260519.zip`.
 4. Run the installer, giving it the SDK zip (make sure to update the download location and filename as needed; leave the zip out if you have no camera yet):
@@ -47,7 +45,7 @@ Do this as your normal user, **not with `sudo`**, and run the script with **`bas
    bash packaging/install_pi.sh ~/Downloads/toupcamsdk.20260519.zip
    ```
    It installs the Qt runtime libraries with `apt` (it asks for your password), creates the virtual environment `.venv`, installs Scopi and everything it
-   needs, installs the camera SDK into `vendor/toupcam/` and the USB permission rule (`udev`) so a normal user may open the camera, and adds an
+   needs, installs the camera SDK into `vendor/toupcam/` and the USB permission rule (`udev`, see section 11) so a normal user may open the camera, and adds an
    **Scopi** entry to the application menu. It is safe to run again if something went wrong half-way. To see what it does step by step:
    `bash -x packaging/install_pi.sh ...`.
 5. Check the installation:
@@ -66,15 +64,19 @@ Adding the camera SDK later: `.venv/bin/python scripts/install_toupcam.py ~/Down
 Optional extras:
 - **Test images** (a 54 MB 18 MP picture, a 3-frame stack and shapes whose areas are known exactly): `.venv/bin/python scripts/make_test_images.py` writes them
   to `~/scopi-test`.
-- **Fiji look-up tables**, if you have a Fiji copy: `.venv/bin/python scripts/install_luts.py /path/to/fiji/luts`.
+- **Fiji look-up tables**, if you have a Fiji copy: `.venv/bin/python scripts/install_luts.py /path/to/fiji/luts`, or have the installer do it by running
+  `SCOPI_FIJI_LUTS=/path/to/fiji/luts bash packaging/install_pi.sh`.
 - **Run the test suite**: `QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q` (expect every test to pass; one is skipped if the SDK is missing).
 
 ## 3. Install on a Mac or another computer
 
+A Mac is the only computer other than the Pi that has been used. Other Linux computers and Windows should be able to view and process pictures but have not been tried, and the
+camera driver only knows macOS and Linux.
+
 ```
-git clone https://github.com/DRGV/imagepi scopi
+git clone https://github.com/DRGV/scopi
 cd scopi
-python3.13 -m venv .venv                # Python 3.12 or newer
+python3.13 -m venv .venv                # 3.13 is the tested version (3.12 is declared but untested)
 .venv/bin/pip install -e ".[test]"      # Scopi, its dependencies from pyproject.toml, and pytest
 .venv/bin/python -m scopi             # or: .venv/bin/scopi [image files...]
 ```
@@ -82,7 +84,9 @@ python3.13 -m venv .venv                # Python 3.12 or newer
 `pip install -r requirements.txt` followed by `pip install -e .` does the same with the dependency list from [requirements.txt](requirements.txt). Add
 `pydicom` (`pip install pydicom`) if you want to open DICOM files.
 
-To use the camera on a Mac, populate `vendor/toupcam/` from the SDK: `.venv/bin/python scripts/install_toupcam.py /path/to/toupcamsdk.zip`.
+To use the camera on a Mac, populate `vendor/toupcam/` from the SDK: `.venv/bin/python scripts/install_toupcam.py /path/to/toupcamsdk.zip`. On macOS the script also
+removes the quarantine flag that macOS puts on downloaded files, from the extracted SDK files only, because macOS may refuse to load a downloaded library otherwise;
+add `--keep-quarantine` to leave it.
 Run the tests with `.venv/bin/python -m pytest` (the Qt tests run without a window).
 
 Important: install **`opencv-python-headless`**, never `opencv-python`. The GUI build of OpenCV carries its own Qt that stops PySide6 from starting.
@@ -252,7 +256,7 @@ All are run from the project folder with the virtual environment's Python (`.ven
 | `pi_bringup.py roitest`, `snaptest` | Check where a hardware crop lands and that snaps in a row all arrive |
 | `benchmark.py` | Times the display pipeline and the filters on an 18 MP image |
 | `make_test_images.py` | Writes the test images to `~/scopi-test` |
-| `install_toupcam.py` | Copies the camera SDK from the vendor's zip or folder into `vendor/toupcam/` (`--udev` also installs the USB rule) |
+| `install_toupcam.py` | Copies the camera SDK from the vendor's zip or folder into `vendor/toupcam/` (`--udev` also installs the USB rule, `--udev-only` installs just the rule) |
 | `install_luts.py` | Installs look-up tables from a Fiji copy |
 
 ## 11. Troubleshooting
@@ -264,7 +268,7 @@ All are run from the project folder with the virtual environment's Python (`.ven
 | The window does not open and Qt says it cannot load a platform plugin | `opencv-python` (the GUI build) is installed. `pip uninstall opencv-python opencv-contrib-python`, then `pip install opencv-python-headless`. |
 | Downloads time out | The link is slow. Run the installer again; pip retries and reuses what it already downloaded. |
 | The camera is not in the list | Click **Refresh**. Check it is on a USB 3 port, run `lsusb` (the OMAX camera shows as `0547:3018`), and that the SDK is installed (`vendor/toupcam/`). Re-plug the camera after installing the SDK or the USB rule. |
-| "Permission denied" when connecting | The USB rule is missing: `sudo install -m 644 packaging/99-toupcam.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger`, then re-plug. |
+| "Permission denied" when connecting | The USB rule is missing: `.venv/bin/python scripts/install_toupcam.py --udev-only`, then re-plug the camera. The rule gives access to whoever is logged in at the Pi's own screen and to the group `plugdev`, so over SSH your user must be in that group: check with `groups`, add it with `sudo usermod -aG plugdev $USER` and log in again. |
 | The camera is busy or will not start | Another program holds it (a script, a second Scopi). Close it, then Disconnect and Connect again. |
 | The live view lags | At 4912 x 3684 the camera itself delivers only about 5 frames per second. Focus with 2456 x 1842 or 1228 x 922 and snap at full size. A long **Auto limit** also lowers the frame rate. |
 | The live picture is upside down or mirrored compared with the eyepiece | Use the **Flip horizontally** / **Flip vertically** boxes (section 8). |
