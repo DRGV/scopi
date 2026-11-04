@@ -70,8 +70,7 @@ Optional extras:
 
 ## 3. Install on a Mac or another computer
 
-A Mac is the only computer other than the Pi that has been used. Other Linux computers and Windows should be able to view and process pictures but have not been tried, and the
-camera driver only knows macOS and Linux.
+A Mac is the only computer other than the Pi that has been used. Other Linux computers and Windows should be able to view and process pictures but have not been tried, and the camera driver only knows how to work with macOS and Linux.
 
 ```
 git clone https://github.com/DRGV/scopi
@@ -113,14 +112,14 @@ View > Theme switches between light, dark and automatic; "Touch-friendly Sizing"
 ## 5. Working with images
 
 - **Open**: File > Open (Ctrl+O), drag a file onto the window, or File > Open Recent. Scopi reads PNG, JPEG, BMP, GIF, WebP, TIFF (8- and 16-bit,
-  colour, stacks, ImageJ and OME-TIFF), NumPy `.npy` and, with `pydicom`, DICOM.
+  color, stacks, ImageJ and OME-TIFF), NumPy `.npy` and, with `pydicom`, DICOM.
 - **Save**: File > Save As (Ctrl+S). The format follows the extension: `.tif` (the default; an ImageJ-compatible TIFF that keeps the scale, the camera
   settings and the stack), `.png`, `.jpg`, `.bmp`, `.ome.tif` or `.npy`. Use TIFF for anything you want to measure again later.
 - **Close**: Ctrl+W. Scopi asks "Save changes to ...?" if the image was changed; Discard throws the changes away.
 - **Zoom and pan**: Ctrl+= and Ctrl+- zoom, Ctrl+1 is actual size, Ctrl+0 fits the window; drag with the middle mouse button, hold Space and drag, or pick the Hand
   tool to pan. Pinch works on a touch screen. Even an 18 MP picture pans and zooms smoothly because only the visible part is drawn.
 - **Brightness and contrast**: the **Brightness / Contrast** panel has the histogram, Min and Max (or **Auto** / **Reset**), a Log view, the look-up table
-  (Grays, Fire, Ice, Spectrum, the primary colours and any Fiji LUTs you installed) and **Invert LUT**. This changes the display only, not the pixels.
+  (Grays, Fire, Ice, Spectrum, the primary colors and any Fiji LUTs you installed) and **Invert LUT**. This changes the display only, not the pixels.
   Image > Adjust > Apply Display Range makes it permanent.
 - **Undo and redo**: Ctrl+Z and Ctrl+Shift+Z, as many steps as memory allows. The status line names the step.
 - **Several images**: Image > Duplicate (Ctrl+Shift+D) copies the current one.
@@ -182,11 +181,11 @@ To take a picture: click **Snap** in the camera panel, or Camera > Snap, or pres
 settings (exposure, gain, bit depth, objective) and the scale of the chosen objective. **Save it with Ctrl+S as a TIFF**, which keeps all of that. The live view
 blinks for a moment and carries on by itself, so you can snap again straight away. Focus with the smaller live resolution (it is smoother) and snap at full size.
 
-### Exposure, gain and colour
+### Exposure, gain and color
 
 - **Auto exposure** is on when you connect. The camera may then use exposure times up to the **Auto limit** (default 100 ms); a long limit makes the live view
   lag because the frame rate cannot exceed 1000 divided by the exposure in milliseconds. Untick it and type an **Exposure** for a fixed time.
-- **Gain** is the slider (100 % is no extra gain). **Auto white balance** (or **Temp** and **Tint**) sets the colours: click it with a white or grey area in view.
+- **Gain** is the slider (100 % is no extra gain). **Auto white balance** (or **Temp** and **Tint**) sets the colors: click it with a white or grey area in view.
 - **Bit depth** reads "8-bit only" on this camera; cameras with a deeper mode offer it there.
 - The live view shows the frame rate and the exposure it is using.
 
@@ -218,8 +217,7 @@ Click **Disconnect**, or just unplug the camera; Scopi notices and stops the liv
 ### Other cameras
 
 Scopi has been tested with one camera, the OMAX A35180U3. Other cameras that use the same ToupTek SDK should work too: OMAX and ToupTek models, and any brand whose
-own software is ToupView or ToupLite. Scopi reads the resolutions, pixel size, exposure and gain ranges and bit depths from the SDK, and the USB permission rule is the
-SDK's own. But nothing else has been tried, so check each new camera:
+own software is ToupView or ToupLite. Scopi reads the resolutions, pixel size, exposure and gain ranges and bit depths from the SDK, and the USB permission rule is the SDK's own. But nothing else has been tried, so check each new camera by:
 
 1. Plug it in, click **Refresh**, **Connect** and **Start live view** as above.
 2. **Check the orientation** against the eyepiece. Scopi assumes ToupTek frames arrive upside down, which was measured on one model only. If the live view is wrong,

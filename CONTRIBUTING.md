@@ -11,7 +11,7 @@ Be kind and constructive in issues and pull requests. Assume good faith; critiqu
   [troubleshooting section](usage.md#11-troubleshooting) of the usage guide.
 - **Report a security problem privately**, never as a public issue: see [SECURITY.md](SECURITY.md).
 - **Test on hardware.** The only camera Scopi has been tried with is the OMAX A35180U3, and the only computers are a Raspberry Pi 5 and a Mac
-  (see [Where it has been tested](readme.md#where-it-has-been-tested)). A report that something works, or does not, on another camera, Linux computer or
+  (see [Where it has been tested](readme.md#where-it-has-been-tested)). A report that something works, or does not, on another camera, Linux computer, or
   Windows is valuable.
 - **Send a change.** For anything bigger than a small fix, open an issue first so we can agree on the approach before you spend time on it.
 

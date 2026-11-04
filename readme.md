@@ -19,7 +19,7 @@ processing pictures (other Linux computers and Windows are untested), and it sho
 ## What Scopi can do
 
 ### View and manage images
-- Opens PNG, JPEG, BMP, GIF, WebP, TIFF (8-bit and 16-bit grey, colour, multi-frame stacks, ImageJ TIFF and OME-TIFF), NumPy `.npy` files and, with the optional
+- Opens PNG, JPEG, BMP, GIF, WebP, TIFF (8-bit and 16-bit grey, color, multi-frame stacks, ImageJ TIFF and OME-TIFF), NumPy `.npy` files and, with the optional
   `pydicom`, DICOM. Saves TIFF (ImageJ-compatible, or OME-TIFF), PNG, JPEG, BMP and `.npy`.
 - Tabs for several images, drag-and-drop, recent files, a frame slider for stacks, undo and redo that is limited by available memory, not by a fixed count.
 - Pans and zooms an 18-megapixel picture smoothly on a Pi 5: only the visible part is drawn, from a pyramid of reduced copies.
