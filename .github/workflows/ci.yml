@@ -6,7 +6,7 @@ on:
   pull_request:
   schedule:
     # Scopi does not pin its dependencies (see requirements.txt), so run weekly to catch a new release of NumPy, Qt, OpenCV and the rest that breaks it.
-    - cron: "23 5 * * 1"
+    # - cron: "23 5 * * 1" for weekly run (MacOS errors for python check)
   workflow_dispatch:
 
 # The default token can only read the repository. No job here needs more.
