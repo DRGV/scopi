@@ -35,8 +35,8 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q     # about 15 seconds; 
 .venv/bin/ruff check .                                      # rules are in pyproject.toml: unused names, syntax errors, likely bugs
 ```
 
-[CI](.github/workflows/ci.yml) runs the same two commands on Ubuntu 24.04 and macOS with Python 3.12 and 3.13, builds the package and checks it. It also runs every Monday,
-because Scopi's dependencies are not pinned and a new release of one of them can break it. A pull request needs a green CI run.
+[CI](.github/workflows/ci.yml) runs the same two commands on Ubuntu 24.04 and macOS with Python 3.12 and 3.13, builds the package and checks it. It does not run on a schedule; the maintainer launches it by hand
+now and then, because Scopi's dependencies are not pinned and a new release of one of them can break it. A pull request needs a green CI run.
 
 CI cannot test a camera, a Raspberry Pi display or a touch screen. If your change affects them, say in the pull request what you tried it on. The step-by-step plans in
 [documents/pi-test-plans](documents/pi-test-plans) show how it was done so far.
