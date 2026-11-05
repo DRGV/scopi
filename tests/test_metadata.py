@@ -40,7 +40,7 @@ def test_python_classifiers_are_the_versions_ci_runs():
 
 
 def test_community_files_exist():
-    for name in ("CONTRIBUTING.md", "SECURITY.md", "CITATION.cff", ".editorconfig", ".gitattributes", ".github/CODEOWNERS", ".github/dependabot.yml",
+    for name in ("CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "CITATION.cff", ".editorconfig", ".gitattributes", ".github/CODEOWNERS", ".github/dependabot.yml",
                  ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/config.yml", ".github/ISSUE_TEMPLATE/bug_report.yml",
                  ".github/ISSUE_TEMPLATE/feature_request.yml"):
         assert (ROOT / name).is_file(), name
