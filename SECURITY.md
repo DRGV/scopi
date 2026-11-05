@@ -15,7 +15,7 @@ Report it privately through GitHub: open the repository's **Security** tab, choo
 - the Scopi version (Help > About Scopi, or `python -c "import scopi; print(scopi.__version__)"`) or commit (`git rev-parse HEAD`), the operating system and the Python version;
 - the smallest set of steps that shows it, and a sample file if a file triggers it (do not send anything that contains personal data).
 
-If you cannot use GitHub's form, open a public issue titled "Security contact request" that says nothing else about the problem, and a private channel will be arranged.
+If you cannot use GitHub's form, email [ithinkscience@proton.me](mailto:ithinkscience@proton.me) with the same details.
 
 Scopi is maintained by one person in spare time. You can expect an answer within **7 days** and, for a confirmed problem, a fix or a plan within **90 days**. The fix is
 released together with a published advisory that credits you, unless you prefer to stay anonymous. Please keep the details private until then.
