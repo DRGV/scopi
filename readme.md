@@ -16,6 +16,19 @@ processing pictures (other Linux computers and Windows are untested), and it sho
 - **[CONTRIBUTING.md](CONTRIBUTING.md)**: set up a development copy, run the tests, send a change
 - **[SECURITY.md](SECURITY.md)**: how to report a vulnerability privately, and what counts as one
 
+## Screenshots
+
+![Scopi open on the Raspberry Pi 5 desktop, started from the application menu (Graphics > Scopi), with the live view of a stage micrometer and the Camera panel on the left](documents/images/scopi-pi-desktop.png)
+
+*Scopi on the Raspberry Pi 5 desktop. It starts from the application menu (Graphics > Scopi). Here it shows the live view of a stage micrometer from the OMAX
+camera, with the Camera panel on the left, Brightness / Contrast on the right and the Results table at the bottom.*
+
+![A snap of a stage micrometer with a Line selection drawn along its scale, the histogram on the right and the measurement in the Results table at the bottom](documents/images/scopi-measure-line.png)
+
+*A snap (4912 x 3684) of the same micrometer with the Line tool drawn along its scale. **Measure** added one row to the Results table (length, angle, mean,
+minimum, maximum, standard deviation and position), and the histogram sits in the Brightness / Contrast panel. This picture has no scale yet, so the length is in
+pixels; see [Calibrate and measure](usage.md#6-calibrate-and-measure) for how to get real units.*
+
 ## What Scopi can do
 
 ### View and manage images
@@ -90,7 +103,7 @@ bash packaging/install_pi.sh /path/to/toupcamsdk.zip     # Raspberry Pi 5; see u
 | `tests/` | The automated tests (`pytest`) |
 | `scripts/` | Helpers: Pi bring-up and diagnostics, benchmark, test images, camera SDK and LUT installers |
 | `packaging/` | Raspberry Pi installer, desktop launcher, USB permission rule for the camera |
-| `documents/` | [Implementation notes and reference material](documents/implementation.md) and the [Raspberry Pi test plans](documents/pi-test-plans) |
+| `documents/` | [Implementation notes and reference material](documents/implementation.md), the [Raspberry Pi test plans](documents/pi-test-plans) and the [screenshots](documents/images) used in the documentation |
 | `LICENSE`, `usage.md`, `requirements.txt`, `pyproject.toml` | The GPL-3.0 license text, usage guide, Python packages, project metadata |
 | `CONTRIBUTING.md`, `SECURITY.md`, `CITATION.cff` | How to contribute, how to report a vulnerability, how to cite Scopi |
 | `.github/` | The CI workflow (lint, tests on Linux and macOS, package check), issue and pull request templates, Dependabot |

@@ -53,7 +53,7 @@ Do this as your normal user, **not with `sudo`**, and run the script with **`bas
    .venv/bin/python scripts/pi_bringup.py check
    ```
    It prints the Python and glibc versions, imports each package (`ok` or `FAIL`) and reports the Qt platform in use (`wayland` on the Pi's own desktop).
-6. Start it from the application menu (**Scopi**) or from the terminal:
+6. Start it from the application menu (**Graphics > Scopi**, see the screenshot in [section 4](#4-start-scopi-and-find-your-way-around)) or from the terminal:
    ```
    .venv/bin/scopi
    ```
@@ -97,6 +97,11 @@ Both provide `import cv2`, so uninstall every OpenCV variant before installing t
 .venv/bin/scopi              # or  python -m scopi  from the project folder, or the Scopi entry in the application menu
 ```
 
+![Scopi open on the Raspberry Pi 5 desktop, started from the application menu (Graphics > Scopi), with the live view of a stage micrometer](documents/images/scopi-pi-desktop.png)
+
+*Scopi on the Raspberry Pi 5 desktop, started from the application menu (Graphics > Scopi). The Camera panel is on the left, the Live tab in the middle,
+Brightness / Contrast on the right and Results at the bottom.*
+
 The window has:
 
 - **Menus**: File, Edit, Image, Process, Analyze, Camera, Macro, View, Help.
@@ -137,6 +142,11 @@ Until an image has a scale, measurements are in pixels. To calibrate, you need s
    **Ctrl+M** (or the Measure button). Each press adds a row to the **Results** panel. With no selection, Measure reports the whole picture.
    The `Length (px)` column lets you check the pixel size by hand: `Length (px)` times the pixel size equals `Length`.
 5. **Analyze > Show Results** opens the table; **Save CSV...** exports it, **Summary** shows statistics, **Clear** empties it.
+
+![A snap of a stage micrometer with the Line tool drawn along its scale, and the measurement as one row in the Results table](documents/images/scopi-measure-line.png)
+
+*A Line drawn along a stage micrometer in a snap, and the row that **Measure** added to Results. The Objective in the Camera panel reads "(uncalibrated)", so
+the picture has no scale: `Length` is in pixels and equals `Length (px)`. After Set Scale, `Length` is in real units and the unit column changes from `pixel`.*
 
 Hold **Shift** while drawing a line to snap it to steps of 45 degrees. The ROI Manager (Ctrl+T adds the current selection) keeps several selections,
 and Analyze > Measure All ROIs measures them in one go. Image > Show Scale Bar draws a scale bar once the image is calibrated.

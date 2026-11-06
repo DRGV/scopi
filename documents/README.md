@@ -7,6 +7,7 @@ Material for people who want to understand, test or extend Scopi. To *use* Scopi
 |---|---|
 | [implementation.md](implementation.md) | How Scopi was built and tested: implementation status, what was verified on which machine, design decisions, architecture, milestones, what Fiji / ImagePy / the camera SDK taught us, and the problems found and fixed |
 | [pi-test-plans/](pi-test-plans) | The step-by-step Raspberry Pi 5 test plans (below) |
+| [images/](images) | The screenshots shown in the [readme](../readme.md) and the [usage guide](../usage.md): `scopi-pi-desktop.png` (Scopi on the Pi 5 desktop) and `scopi-measure-line.png` (a line measurement of a stage micrometer) |
 | This page | A short guide to extending Scopi: new operations, plugins, file formats, cameras, tests |
 
 ## The Raspberry Pi test plans
